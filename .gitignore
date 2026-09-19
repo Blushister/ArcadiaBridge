@@ -3,6 +3,7 @@ build/
 out/
 run/
 runs/
+runClient/
 .idea/
 *.iml
 *.iws
