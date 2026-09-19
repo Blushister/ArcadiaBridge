@@ -1,0 +1,136 @@
+plugins {
+    id 'java-library'
+    id 'idea'
+    id 'net.neoforged.moddev' version '2.0.147'
+    id 'com.gradleup.shadow' version '9.6.1'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {
+    mavenCentral()
+}
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+
+    runs {
+        server {
+            server()
+            programArgument '--nogui'
+            gameDirectory = project.file('run')
+        }
+    }
+}
+
+configurations {
+    // Bibliotheques embarquees dans le jar final (relocalisees par shadowJar)
+    shade
+    implementation.extendsFrom shade
+    additionalRuntimeClasspath.extendsFrom shade
+}
+
+dependencies {
+    shade("net.dv8tion:JDA:${jda_version}") {
+        exclude module: 'opus-java'       // audio : inutile
+        exclude module: 'tink'            // chiffrement voix : inutile
+        exclude group: 'org.slf4j'        // fourni par NeoForge
+        exclude group: 'com.google.code.findbugs'
+    }
+    shade("com.mysql:mysql-connector-j:${mysql_version}") {
+        exclude group: 'com.google.protobuf' // X DevAPI uniquement
+    }
+    shade("com.zaxxer:HikariCP:${hikari_version}") {
+        exclude group: 'org.slf4j'
+    }
+
+    // LuckPerms : dependance optionnelle (prefixes de chat)
+    compileOnly "net.luckperms:api:${luckperms_api_version}"
+}
+
+def relocationRoot = 'com.arcadia.bridge.shadow'
+
+shadowJar {
+    configurations = [project.configurations.shade]
+    archiveClassifier = ''
+
+    [
+        'net.dv8tion',
+        'com.neovisionaries',
+        'okhttp3',
+        'okio',
+        'kotlin',
+        'org.intellij',
+        'org.jetbrains.annotations',
+        'org.apache.commons.collections4',
+        'gnu.trove',
+        'com.fasterxml.jackson',
+        'com.mysql',
+        'com.zaxxer.hikari',
+    ].each { pkg -> relocate pkg, "${relocationRoot}.${pkg}" }
+
+    mergeServiceFiles()
+    exclude 'module-info.class'
+    exclude 'META-INF/versions/*/module-info.class'
+    exclude 'META-INF/maven/**'
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+    exclude 'META-INF/proguard/**'
+    exclude 'META-INF/*.kotlin_module'
+}
+
+jar {
+    archiveClassifier = 'slim'
+}
+
+assemble.dependsOn shadowJar
+
+var generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            neo_version_range      : neo_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from 'src/main/templates'
+    into 'build/generated/sources/modMetadata'
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}
