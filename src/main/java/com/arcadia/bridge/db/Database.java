@@ -12,10 +12,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
-import com.mojang.logging.LogUtils;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Acces MySQL. Toutes les requetes passent par {@link #async} : elles tournent sur un pool de threads
@@ -23,7 +23,7 @@ import org.slf4j.Logger;
  */
 public final class Database implements AutoCloseable {
 
-    private static final Logger LOGGER = LogUtils.getLogger();
+    private static final Logger LOGGER = LoggerFactory.getLogger(Database.class);
     private static final Pattern SAFE_PREFIX = Pattern.compile("[A-Za-z0-9_]{0,20}");
 
     @FunctionalInterface
