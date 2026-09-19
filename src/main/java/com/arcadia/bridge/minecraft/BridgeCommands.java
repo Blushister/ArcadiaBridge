@@ -194,11 +194,15 @@ public final class BridgeCommands {
         Bridge bridge = Bridge.get();
         boolean db = bridge != null && bridge.isDatabaseReady();
         boolean discord = bridge != null && bridge.discord().isReady();
+        var cache = bridge == null ? null : bridge.cache();
         ctx.getSource().sendSuccess(() -> Lang.mc("cmd.status",
                 "db", Lang.get(db ? "common.ok" : "common.ko"),
                 "discord", Lang.get(discord ? "common.ok" : "common.ko"),
                 "server", Bridge.serverId(),
-                "primary", Lang.get(Bridge.isPrimary() ? "common.yes" : "common.no")), false);
+                "primary", Lang.get(Bridge.isPrimary() ? "common.yes" : "common.no"),
+                "links", cache == null ? 0 : cache.linkCount(),
+                "bans", cache == null ? 0 : cache.banCount(),
+                "mutes", cache == null ? 0 : cache.muteCount()), false);
         return 1;
     }
 

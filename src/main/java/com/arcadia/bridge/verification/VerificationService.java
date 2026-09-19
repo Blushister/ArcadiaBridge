@@ -227,7 +227,9 @@ public final class VerificationService {
     private void sendCodeMessage(ServerPlayer player, Pending p) {
         long remaining = p.kickAt == Long.MAX_VALUE ? -1 : Math.max(0, (p.kickAt - System.currentTimeMillis()) / 1000);
         MutableComponent codeComponent = Lang.mc("verify.code_line", "code", p.code).withStyle(style -> style
-                .withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, "/verify " + p.code))
+                // On ne copie que le code : coller "/verify CODE" dans Discord n'ouvre pas la commande slash
+                // et enverrait le code en message visible par tout le salon.
+                .withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, p.code))
                 .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Lang.mc("verify.click_to_copy", "code", p.code))));
         player.sendSystemMessage(Lang.mc("verify.header"));
         player.sendSystemMessage(codeComponent);

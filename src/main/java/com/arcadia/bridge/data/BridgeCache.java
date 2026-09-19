@@ -27,6 +27,18 @@ public final class BridgeCache {
         return loaded;
     }
 
+    public int linkCount() {
+        return links.size();
+    }
+
+    public int banCount() {
+        return bans.size();
+    }
+
+    public int muteCount() {
+        return mutes.size();
+    }
+
     // ---------------------------------------------------------------- liaisons
 
     public boolean isLinked(UUID uuid) {

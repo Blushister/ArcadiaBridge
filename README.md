@@ -88,8 +88,12 @@ Les failles de l'ancien mod sont corrigées :
 - code tiré avec `SecureRandom`, stocké **haché** (SHA-256), à **usage unique**, avec **expiration
   vérifiée** et limitation du nombre d'essais par compte Discord ;
 - un compte déjà lié ne peut pas être re-lié par quelqu'un d'autre ;
-- toutes les mentions sont désactivées sur les messages du bot : un joueur ne peut pas déclencher
-  `@everyone` depuis le chat Minecraft ;
+- toutes les mentions sont désactivées sur les messages du bot **et** le texte des mentions est
+  désamorcé : un joueur ne peut ni déclencher ni afficher un `@everyone` depuis le chat Minecraft ;
+- le clic sur le code en jeu copie **le code seul** : coller « /verify CODE » dans Discord enverrait un
+  message visible de tous au lieu d'ouvrir la commande slash ;
+- un `/verify CODE` ou `!verify CODE` écrit en message texte est traité **puis effacé**, pour que le code
+  ne reste pas affiché dans le salon ;
 - codes couleur et markdown neutralisés dans les deux sens ;
 - requêtes SQL exclusivement préparées.
 

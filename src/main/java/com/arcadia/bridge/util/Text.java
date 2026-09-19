@@ -10,6 +10,9 @@ public final class Text {
     private static final Pattern SECTION_CODES = Pattern.compile("§[0-9a-fk-orA-FK-OR]?");
     private static final Pattern AMPERSAND_CODES = Pattern.compile("&([0-9a-fk-orA-FK-OR])");
     private static final Pattern CONTROL_CHARS = Pattern.compile("[\\p{Cntrl}&&[^\n]]");
+    /** @everyone, @here, &lt;@id&gt;, &lt;@!id&gt;, &lt;@&amp;id&gt; : une espace de largeur nulle est glissee apres le @. */
+    private static final Pattern MENTIONS = Pattern.compile("@(?=everyone|here|[0-9&!])");
+    private static final String ZERO_WIDTH_SPACE = "​";
 
     private Text() {
     }
@@ -38,9 +41,21 @@ public final class Text {
         return out;
     }
 
-    /** Texte venant de Minecraft, rendu sur pour Discord : sans markdown ni mise en forme Minecraft. */
+    /**
+     * Texte venant de Minecraft, rendu sur pour Discord : sans markdown, sans mise en forme Minecraft
+     * et sans mention active.
+     */
     public static String forDiscord(String text) {
-        return MarkdownSanitizer.escape(stripFormatting(text));
+        return neutralizeMentions(MarkdownSanitizer.escape(stripFormatting(text)));
+    }
+
+    /**
+     * Desamorce les mentions. Le bot envoie deja ses messages avec allowed_mentions vide (rien ne peut
+     * notifier), mais on casse aussi le texte : un joueur ne doit pas pouvoir afficher un faux
+     * "@everyone" credible dans le salon.
+     */
+    public static String neutralizeMentions(String text) {
+        return MENTIONS.matcher(text).replaceAll("@" + ZERO_WIDTH_SPACE);
     }
 
     /** Remplace les variables {cle} ; args = cle1, valeur1, cle2, valeur2... */

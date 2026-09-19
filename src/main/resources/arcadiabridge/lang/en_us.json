@@ -6,21 +6,18 @@
   "common.ko": "OFFLINE",
   "common.yes": "yes",
   "common.no": "no",
-
   "type.BAN": "Ban",
   "type.MUTE": "Mute",
   "type.WARN": "Warning",
-
   "verify.header": "&6&l[Arcadia] &eLink your Discord account to play!",
   "verify.code_line": "&7Your code: &a&l{code} &7(click to copy)",
-  "verify.click_to_copy": "Copy \"/verify {code}\"",
-  "verify.instructions": "&7On our Discord, type &f/verify {code}&7. The code is valid for {minutes} min and works once. Never share it.",
+  "verify.click_to_copy": "Click to copy the code {code}",
+  "verify.instructions": "&7On our Discord, type &f/verify&7 then paste your code. It is valid for {minutes} min, works once, and must never be shared.",
   "verify.kick_warning": "&eYou have {seconds}s left to link your account before being disconnected.",
   "verify.kick_screen": "&6Discord verification required\n\n&fYour code: &a&l{code}\n\n&7On our Discord, type &f/verify {code}&7 then reconnect.\n&7Code valid for {minutes} minutes. Never share it.",
   "verify.success_ingame": "&a[Arcadia] Discord account linked. Have fun!",
   "verify.already_linked": "&a[Arcadia] Your account is already linked to Discord.",
   "verify.chat_blocked": "&c[Arcadia] Link your Discord account first to use the chat.",
-
   "ban.screen": "&cYou are banned from this server.\n\n&7Reason: &f{reason}\n&7By: &f{actor}",
   "ban.screen_temp": "&cYou are temporarily banned.\n\n&7Reason: &f{reason}\n&7By: &f{actor}\n&7Time left: &f{remaining}",
   "mute.notify": "&c[Arcadia] You are muted. Reason: &f{reason}",
@@ -29,7 +26,6 @@
   "warn.notify": "&e[Arcadia] You received a warning: &f{reason}",
   "sanction.no_reason": "No reason given",
   "sanction.discord_ban_reason": "Banned on Discord",
-
   "cmd.bad_duration": "&cInvalid duration. Examples: 30m, 2h, 7d, 1w, 1d12h.",
   "cmd.not_yourself": "&cYou cannot ban yourself.",
   "cmd.player_unknown": "&cPlayer \"{name}\" not found (they must have joined at least once).",
@@ -46,30 +42,25 @@
   "cmd.history.line": "&7{date} &f{type} &7{state}- {reason} &8(by {actor})",
   "cmd.history.active": "[active] ",
   "cmd.history.ended": "",
-  "cmd.status": "&6ArcadiaBridge &7- server &f{server}&7 (primary: {primary})\n&7Database: &f{db}\n&7Discord: &f{discord}",
+  "cmd.status": "&6ArcadiaBridge &7- server &f{server}&7 (primary: {primary})\n&7Database: &f{db}\n&7Discord: &f{discord}\n&7In memory: &f{links}&7 links, &f{bans}&7 bans, &f{mutes}&7 mutes",
   "cmd.reloaded": "&aLanguage files reloaded.",
-
   "chat.attachments": "[{count} attachment(s)]",
-
   "discord.status.started": "✅ Server **{server}** is online.",
   "discord.status.stopped": "🛑 Server **{server}** has stopped.",
   "discord.status.join": "➕ **{name}** joined the server.",
   "discord.status.leave": "➖ **{name}** left the server.",
   "discord.status.death": "💀 {message}",
-
   "discord.error": "An error occurred, please try again later.",
   "discord.unavailable": "Service temporarily unavailable, please try again shortly.",
   "discord.no_permission": "You are not allowed to use this command.",
   "discord.player_unknown": "Player \"{name}\" not found (they must have joined at least once).",
   "discord.bad_duration": "Invalid duration. Examples: 30m, 2h, 7d, 1w, 1d12h.",
-
   "discord.verify.usage": "Join the Minecraft server to get your code, then type `/verify <code>` here.",
   "discord.verify.success": "✅ Your Discord account is now linked to **{name}**.",
   "discord.verify.invalid": "❌ Invalid or expired code. Rejoin the server to get a new one.",
   "discord.verify.too_many": "⏳ Too many attempts. Try again in a few minutes.",
   "discord.verify.discord_already_linked": "Your Discord account is already linked to a Minecraft account. Ask staff to change it.",
   "discord.verify.account_already_linked": "This Minecraft account is already linked to a Discord account.",
-
   "discord.cmd.verify": "Link your Minecraft account with the code shown in game",
   "discord.cmd.verify.code": "The code shown in game",
   "discord.cmd.mc": "Minecraft account moderation",
@@ -85,7 +76,6 @@
   "discord.cmd.opt.reason": "Reason",
   "discord.cmd.opt.duration": "Duration (e.g. 30m, 2h, 7d)",
   "discord.cmd.opt.duration_optional": "Duration (e.g. 30m, 2h, 7d); empty = permanent",
-
   "discord.sanction.done": "✅ {type} applied to **{name}** ({duration}).",
   "discord.warn.done": "✅ **{name}** received a warning ({count}/{max}).",
   "discord.revoke.done": "✅ Sanction lifted for **{name}**.",
@@ -98,7 +88,6 @@
   "discord.info.muted": "🔇 Muted: {reason}",
   "discord.info.warns": "⚠️ Warnings: {count}/{max}",
   "discord.info.history": "**Latest sanctions:**",
-
   "log.ban": "⛔ Permanent ban",
   "log.tempban": "⛔ Temporary ban",
   "log.mute": "🔇 Permanent mute",

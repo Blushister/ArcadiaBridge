@@ -38,6 +38,12 @@ neoForge {
             programArgument '--nogui'
             gameDirectory = project.file('run')
         }
+
+        // Client de test : permet de se connecter au serveur de dev sans installer de modpack.
+        client {
+            client()
+            gameDirectory = project.file('runClient')
+        }
     }
 }
 

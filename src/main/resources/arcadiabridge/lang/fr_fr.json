@@ -6,21 +6,18 @@
   "common.ko": "HORS LIGNE",
   "common.yes": "oui",
   "common.no": "non",
-
   "type.BAN": "Ban",
   "type.MUTE": "Mute",
   "type.WARN": "Avertissement",
-
   "verify.header": "&6&l[Arcadia] &eLie ton compte Discord pour jouer !",
-  "verify.code_line": "&7Ton code : &a&l{code} &7(clique pour copier)",
-  "verify.click_to_copy": "Copier « /verify {code} »",
-  "verify.instructions": "&7Sur notre Discord, tape &f/verify {code}&7. Le code est valable {minutes} min et ne sert qu'une fois. Ne le donne à personne.",
+  "verify.code_line": "&7Ton code : &a&l{code} &7(clique pour le copier)",
+  "verify.click_to_copy": "Cliquer pour copier le code {code}",
+  "verify.instructions": "&7Sur notre Discord, tape &f/verify&7 puis colle ton code. Il est valable {minutes} min, ne sert qu'une fois, et ne doit etre donne a personne.",
   "verify.kick_warning": "&eIl te reste {seconds} s pour lier ton compte avant d'être déconnecté.",
   "verify.kick_screen": "&6Vérification Discord requise\n\n&fTon code : &a&l{code}\n\n&7Sur notre Discord, tape &f/verify {code}&7 puis reconnecte-toi.\n&7Code valable {minutes} minutes. Ne le partage avec personne.",
   "verify.success_ingame": "&a[Arcadia] Compte Discord lié avec succès. Bon jeu !",
   "verify.already_linked": "&a[Arcadia] Ton compte est déjà lié à Discord.",
   "verify.chat_blocked": "&c[Arcadia] Lie d'abord ton compte Discord pour pouvoir écrire dans le chat.",
-
   "ban.screen": "&cTu es banni du serveur.\n\n&7Raison : &f{reason}\n&7Par : &f{actor}",
   "ban.screen_temp": "&cTu es banni temporairement.\n\n&7Raison : &f{reason}\n&7Par : &f{actor}\n&7Temps restant : &f{remaining}",
   "mute.notify": "&c[Arcadia] Tu es réduit au silence. Raison : &f{reason}",
@@ -29,7 +26,6 @@
   "warn.notify": "&e[Arcadia] Tu as reçu un avertissement : &f{reason}",
   "sanction.no_reason": "Aucune raison précisée",
   "sanction.discord_ban_reason": "Banni sur Discord",
-
   "cmd.bad_duration": "&cDurée invalide. Exemples : 30m, 2h, 7d, 1w, 1d12h.",
   "cmd.not_yourself": "&cTu ne peux pas te bannir toi-même.",
   "cmd.player_unknown": "&cJoueur « {name} » introuvable (il doit s'être connecté au moins une fois).",
@@ -46,30 +42,25 @@
   "cmd.history.line": "&7{date} &f{type} &7{state}- {reason} &8(par {actor})",
   "cmd.history.active": "[en cours] ",
   "cmd.history.ended": "",
-  "cmd.status": "&6ArcadiaBridge &7- serveur &f{server}&7 (primaire : {primary})\n&7Base de données : &f{db}\n&7Discord : &f{discord}",
+  "cmd.status": "&6ArcadiaBridge &7- serveur &f{server}&7 (primaire : {primary})\n&7Base de données : &f{db}\n&7Discord : &f{discord}\n&7En memoire : &f{links}&7 liaisons, &f{bans}&7 bans, &f{mutes}&7 mutes",
   "cmd.reloaded": "&aFichiers de langue rechargés.",
-
   "chat.attachments": "[{count} pièce(s) jointe(s)]",
-
   "discord.status.started": "✅ Le serveur **{server}** est en ligne.",
   "discord.status.stopped": "🛑 Le serveur **{server}** s'est arrêté.",
   "discord.status.join": "➕ **{name}** a rejoint le serveur.",
   "discord.status.leave": "➖ **{name}** a quitté le serveur.",
   "discord.status.death": "💀 {message}",
-
   "discord.error": "Une erreur est survenue, réessaie plus tard.",
   "discord.unavailable": "Service momentanément indisponible, réessaie dans un instant.",
   "discord.no_permission": "Tu n'as pas la permission d'utiliser cette commande.",
   "discord.player_unknown": "Joueur « {name} » introuvable (il doit s'être connecté au moins une fois).",
   "discord.bad_duration": "Durée invalide. Exemples : 30m, 2h, 7d, 1w, 1d12h.",
-
   "discord.verify.usage": "Connecte-toi au serveur Minecraft pour obtenir ton code, puis tape `/verify <code>` ici.",
   "discord.verify.success": "✅ Ton compte Discord est maintenant lié au joueur **{name}**.",
   "discord.verify.invalid": "❌ Code invalide ou expiré. Reconnecte-toi au serveur pour en obtenir un nouveau.",
   "discord.verify.too_many": "⏳ Trop de tentatives. Réessaie dans quelques minutes.",
   "discord.verify.discord_already_linked": "Ton compte Discord est déjà lié à un compte Minecraft. Demande au staff si tu veux le changer.",
   "discord.verify.account_already_linked": "Ce compte Minecraft est déjà lié à un compte Discord.",
-
   "discord.cmd.verify": "Lier ton compte Minecraft avec le code affiché en jeu",
   "discord.cmd.verify.code": "Le code affiché en jeu",
   "discord.cmd.mc": "Modération des comptes Minecraft",
@@ -85,7 +76,6 @@
   "discord.cmd.opt.reason": "Raison",
   "discord.cmd.opt.duration": "Durée (ex : 30m, 2h, 7d)",
   "discord.cmd.opt.duration_optional": "Durée (ex : 30m, 2h, 7d) ; vide = définitif",
-
   "discord.sanction.done": "✅ {type} appliqué à **{name}** ({duration}).",
   "discord.warn.done": "✅ **{name}** a reçu un avertissement ({count}/{max}).",
   "discord.revoke.done": "✅ Sanction levée pour **{name}**.",
@@ -98,7 +88,6 @@
   "discord.info.muted": "🔇 Muet : {reason}",
   "discord.info.warns": "⚠️ Avertissements : {count}/{max}",
   "discord.info.history": "**Dernières sanctions :**",
-
   "log.ban": "⛔ Ban définitif",
   "log.tempban": "⛔ Ban temporaire",
   "log.mute": "🔇 Mute définitif",
