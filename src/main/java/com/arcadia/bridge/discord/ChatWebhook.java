@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.util.Text;
+import com.arcadia.bridge.util.WebhookUrls;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
@@ -44,10 +45,14 @@ public final class ChatWebhook {
         return configured.isEmpty() ? runtimeUrl : configured;
     }
 
+    /** Adresse de la tete du joueur, telle que configuree. */
+    public static String avatarUrl(java.util.UUID uuid, String playerName) {
+        return Text.fill(BridgeConfig.CHAT_AVATAR_URL.get(), "uuid", uuid, "name", playerName);
+    }
+
+    /** En style compact, tout passe par le bot : le webhook n'est pas utilise. */
     public static boolean isConfigured() {
-        String url = url();
-        return url.startsWith("https://discord.com/api/webhooks/")
-                || url.startsWith("https://discordapp.com/api/webhooks/");
+        return BridgeConfig.isRichPresentation() && WebhookUrls.isWebhookUrl(url());
     }
 
     /**
@@ -58,7 +63,7 @@ public final class ChatWebhook {
         if (!isConfigured()) {
             return false;
         }
-        String avatar = Text.fill(BridgeConfig.CHAT_AVATAR_URL.get(), "uuid", uuid, "name", displayName);
+        String avatar = avatarUrl(uuid, displayName);
         JsonObject body = new JsonObject();
         body.addProperty("username", trim(displayName, NAME_MAX));
         if (!avatar.isBlank()) {

@@ -21,6 +21,7 @@ public final class DiscordLogs {
     private static final Color YELLOW = new Color(0xE6, 0xC2, 0x29);
     private static final Color GREEN = new Color(0x3B, 0xA5, 0x5D);
     private static final Color BLUE = new Color(0x4F, 0x7C, 0xD9);
+    private static final Color GREY = new Color(0x9A, 0xA0, 0xA6);
 
     private DiscordLogs() {
     }
@@ -57,6 +58,32 @@ public final class DiscordLogs {
     public static MessageEmbed sanctionExpired(Sanction s) {
         String titleKey = s.type() == SanctionType.BAN ? "log.ban_expired" : "log.mute_expired";
         return base(GREEN, Lang.get(titleKey), s.name(), s.discordId()).build();
+    }
+
+    /** Arrivee, depart ou mort d'un joueur : un encart discret avec sa tete. */
+    public static MessageEmbed playerStatus(String message, java.util.UUID uuid, String playerName, Kind kind) {
+        Color color = switch (kind) {
+            case JOIN -> GREEN;
+            case LEAVE -> GREY;
+            case DEATH -> RED;
+        };
+        return new EmbedBuilder()
+                .setColor(color)
+                .setAuthor(message, null, ChatWebhook.avatarUrl(uuid, playerName))
+                .build();
+    }
+
+    /** Demarrage ou arret d'un serveur. */
+    public static MessageEmbed serverStatus(String message, boolean online) {
+        return new EmbedBuilder()
+                .setColor(online ? GREEN : GREY)
+                .setDescription(message)
+                .setTimestamp(Instant.now())
+                .build();
+    }
+
+    public enum Kind {
+        JOIN, LEAVE, DEATH
     }
 
     public static MessageEmbed linked(Link link) {

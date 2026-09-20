@@ -1,6 +1,7 @@
 package com.arcadia.bridge;
 
 import com.arcadia.bridge.config.BridgeConfig;
+import com.arcadia.bridge.discord.DiscordLogs;
 import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.minecraft.GameEvents;
 import com.arcadia.bridge.util.Text;
@@ -42,7 +43,7 @@ public final class ArcadiaBridge {
                         return;
                     }
                 }
-                bridge.discord().sendChat(Lang.get("discord.status.started", "server", serverLabel()));
+                announceServer(bridge, Lang.get("discord.status.started", "server", serverLabel()), true, false);
             }, "ArcadiaBridge-Announce");
             announcer.setDaemon(true);
             announcer.start();
@@ -52,9 +53,26 @@ public final class ArcadiaBridge {
     private static void onServerStopping(ServerStoppingEvent event) {
         Bridge bridge = Bridge.get();
         if (bridge != null && BridgeConfig.STATUS_SERVER.get()) {
-            bridge.discord().sendChatBlocking(Lang.get("discord.status.stopped", "server", serverLabel()));
+            announceServer(bridge, Lang.get("discord.status.stopped", "server", serverLabel()), false, true);
         }
         Bridge.stop();
+    }
+
+    private static void announceServer(Bridge bridge, String message, boolean online, boolean blocking) {
+        if (!BridgeConfig.isRichPresentation()) {
+            if (blocking) {
+                bridge.discord().sendChatBlocking(message);
+            } else {
+                bridge.discord().sendChat(message);
+            }
+            return;
+        }
+        var embed = DiscordLogs.serverStatus(message, online);
+        if (blocking) {
+            bridge.discord().sendChatEmbedBlocking(embed);
+        } else {
+            bridge.discord().sendChatEmbed(embed);
+        }
     }
 
     private static String serverLabel() {
