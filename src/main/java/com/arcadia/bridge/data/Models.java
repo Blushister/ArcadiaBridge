@@ -61,6 +61,21 @@ public final class Models {
         }
     }
 
+    /**
+     * Signalement fait en jeu et transmis au staff sur Discord.
+     *
+     * @param count  nombre de signalements groupes pour ce joueur tant que le staff n'a pas tranche
+     * @param status OPEN tant qu'il n'est pas traite, sinon l'action retenue (MUTED, BANNED, IGNORED)
+     */
+    public record Report(long id, UUID reporterUuid, String reporterName, UUID targetUuid, String targetName,
+                         String reason, String serverId, long createdAt, int count, String status,
+                         Long messageId) {
+    }
+
+    /** Message de chat relaye d'un serveur a l'autre via la base partagee. */
+    public record ChatLine(long id, String serverId, String playerName, String prefix, String message) {
+    }
+
     public enum RedeemStatus {
         SUCCESS, INVALID_CODE, ACCOUNT_ALREADY_LINKED, DISCORD_ALREADY_LINKED
     }

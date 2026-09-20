@@ -16,6 +16,7 @@ public final class BridgeConfig {
     public static final ModConfigSpec.ConfigValue<String> SERVER_ID;
     public static final ModConfigSpec.ConfigValue<String> SERVER_NAME;
     public static final ModConfigSpec.ConfigValue<String> LANGUAGE;
+    public static final ModConfigSpec.ConfigValue<String> PRESENTATION;
 
     // database
     public static final ModConfigSpec.ConfigValue<String> DB_HOST;
@@ -46,6 +47,10 @@ public final class BridgeConfig {
     public static final ModConfigSpec.BooleanValue CHAT_LUCKPERMS_PREFIX;
     public static final ModConfigSpec.ConfigValue<String> CHAT_WEBHOOK_URL;
     public static final ModConfigSpec.ConfigValue<String> CHAT_AVATAR_URL;
+    public static final ModConfigSpec.BooleanValue CHAT_CROSS_SERVER;
+    public static final ModConfigSpec.ConfigValue<String> CHAT_CROSS_SERVER_FORMAT;
+    public static final ModConfigSpec.BooleanValue CHAT_CROSS_SERVER_DEFAULT;
+    public static final ModConfigSpec.IntValue CHAT_CROSS_SERVER_POLL;
 
     // status
     public static final ModConfigSpec.BooleanValue STATUS_SERVER;
@@ -69,6 +74,18 @@ public final class BridgeConfig {
     public static final ModConfigSpec.IntValue SANCTIONS_MAX_WARNS;
     public static final ModConfigSpec.ConfigValue<List<? extends String>> SANCTIONS_MUTE_BLOCKED_COMMANDS;
 
+    // signalements
+    public static final ModConfigSpec.BooleanValue REPORTS_ENABLED;
+    public static final ModConfigSpec.ConfigValue<String> REPORTS_CHANNEL_ID;
+    public static final ModConfigSpec.IntValue REPORTS_COOLDOWN_SECONDS;
+    public static final ModConfigSpec.ConfigValue<String> REPORTS_MUTE_DURATION;
+    public static final ModConfigSpec.ConfigValue<String> REPORTS_BAN_DURATION;
+
+    // securite
+    public static final ModConfigSpec.BooleanValue SECURITY_EVASION_ALERTS;
+    public static final ModConfigSpec.IntValue SECURITY_IP_RETENTION_DAYS;
+    public static final ModConfigSpec.ConfigValue<String> SECURITY_IP_SALT;
+
     static {
         ModConfigSpec.Builder b = new ModConfigSpec.Builder();
 
@@ -79,6 +96,13 @@ public final class BridgeConfig {
                 .define("serverName", "");
         LANGUAGE = b.comment("Langue des messages : fr_fr ou en_us. Les textes sont modifiables dans config/arcadiabridge/lang/.")
                 .define("language", "fr_fr");
+        PRESENTATION = b.comment(
+                        "Style des messages envoyes sur Discord :",
+                        "  compact : tout est poste par le bot, une ligne par evenement.",
+                        "  riche   : les joueurs parlent via un webhook (pseudo et tete de skin)",
+                        "            et les annonces deviennent des encarts colores.")
+                .define("presentation", "compact",
+                        o -> "compact".equals(o) || "riche".equals(o) || "rich".equals(o));
         b.pop();
 
         b.push("database");
@@ -129,6 +153,16 @@ public final class BridgeConfig {
                 .define("webhookUrl", "");
         CHAT_AVATAR_URL = b.comment("Image utilisee comme avatar. Variables : {uuid} {name}")
                 .define("avatarUrl", "https://mc-heads.net/avatar/{uuid}/64");
+        CHAT_CROSS_SERVER = b.comment(
+                        "Afficher en jeu le chat des autres serveurs Arcadia (via la base partagee).",
+                        "A activer sur chaque serveur qui doit voir et envoyer.")
+                .define("crossServer", false);
+        CHAT_CROSS_SERVER_FORMAT = b.comment("Format des messages venus d'un autre serveur. Variables : {server} {prefix} {name} {message}")
+                .define("crossServerFormat", "&8[{server}] &f{prefix}{name}&7 : &f{message}");
+        CHAT_CROSS_SERVER_DEFAULT = b.comment("Les joueurs voient le chat des autres serveurs par defaut (modifiable par /chat).")
+                .define("crossServerByDefault", true);
+        CHAT_CROSS_SERVER_POLL = b.comment("Frequence de releve du chat des autres serveurs, en secondes.")
+                .defineInRange("crossServerIntervalSeconds", 2, 1, 30);
         b.pop();
 
         b.push("status");
@@ -167,6 +201,33 @@ public final class BridgeConfig {
                         () -> "", o -> o instanceof String);
         b.pop();
 
+        b.push("reports");
+        REPORTS_ENABLED = b.comment("Commande /report en jeu, transmise au staff sur Discord.")
+                .define("enabled", true);
+        REPORTS_CHANNEL_ID = b.comment("Salon des signalements (vide = salon de logs).")
+                .define("channelId", "");
+        REPORTS_COOLDOWN_SECONDS = b.comment("Delai minimal entre deux signalements par un meme joueur.")
+                .defineInRange("cooldownSeconds", 60, 0, 3600);
+        REPORTS_MUTE_DURATION = b.comment("Duree appliquee par le bouton 'Mute' du salon staff.")
+                .define("muteButtonDuration", "1h");
+        REPORTS_BAN_DURATION = b.comment("Duree appliquee par le bouton 'Ban' du salon staff.")
+                .define("banButtonDuration", "1d");
+        b.pop();
+
+        b.push("security");
+        SECURITY_EVASION_ALERTS = b.comment(
+                        "Prevenir le staff quand un joueur se connecte depuis la meme adresse qu'un compte banni.",
+                        "Alerte uniquement : aucune sanction automatique, les faux positifs sont frequents",
+                        "(colocataires, reseau partage, operateur mobile).")
+                .define("banEvasionAlerts", true);
+        SECURITY_IP_RETENTION_DAYS = b.comment("Duree de conservation des empreintes d'adresse, en jours.")
+                .defineInRange("ipRetentionDays", 90, 1, 3650);
+        SECURITY_IP_SALT = b.comment(
+                        "Sel utilise pour hacher les adresses. Genere automatiquement au premier demarrage.",
+                        "Les adresses ne sont jamais stockees en clair. Changer ce sel efface l'historique de detection.")
+                .define("ipSalt", "");
+        b.pop();
+
         SPEC = b.build();
     }
 
@@ -184,6 +245,12 @@ public final class BridgeConfig {
         } catch (NumberFormatException e) {
             return 0L;
         }
+    }
+
+    /** Style riche : webhook pour les joueurs et encarts pour les annonces. */
+    public static boolean isRichPresentation() {
+        String value = PRESENTATION.get();
+        return "riche".equals(value) || "rich".equals(value);
     }
 
     public static boolean isKickMode() {

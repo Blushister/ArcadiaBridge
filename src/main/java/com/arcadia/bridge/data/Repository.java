@@ -16,7 +16,9 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import com.arcadia.bridge.data.Models.Link;
+import com.arcadia.bridge.data.Models.ChatLine;
 import com.arcadia.bridge.data.Models.PlayerRef;
+import com.arcadia.bridge.data.Models.Report;
 import com.arcadia.bridge.data.Models.RedeemResult;
 import com.arcadia.bridge.data.Models.RedeemStatus;
 import com.arcadia.bridge.data.Models.Sanction;
@@ -33,6 +35,8 @@ public final class Repository {
     private final String codes;
     private final String sanctions;
     private final String servers;
+    private final String reports;
+    private final String chat;
 
     public Repository(Database db) {
         this.db = db;
@@ -41,6 +45,8 @@ public final class Repository {
         this.codes = db.t("codes");
         this.sanctions = db.t("sanctions");
         this.servers = db.t("servers");
+        this.reports = db.t("reports");
+        this.chat = db.t("chat");
     }
 
     // ---------------------------------------------------------------- etat des serveurs
@@ -85,6 +91,231 @@ public final class Repository {
                 }
             }
             return list;
+        });
+    }
+
+    // ---------------------------------------------------------------- signalements
+
+    private static final String REPORT_COLUMNS = "id, reporter_uuid, reporter_name, target_uuid, target_name,"
+            + " reason, server_id, created_at, count, status, message_id";
+
+    /**
+     * Enregistre un signalement. Si le meme joueur est deja signale et non traite, on incremente le
+     * compteur au lieu de creer une entree : le salon staff ne se noie pas sous les doublons.
+     */
+    public CompletableFuture<Report> addReport(Report draft) {
+        return db.transaction(c -> {
+            try (PreparedStatement ps = c.prepareStatement("SELECT " + REPORT_COLUMNS + " FROM " + reports
+                    + " WHERE target_uuid = ? AND status = 'OPEN' ORDER BY id DESC LIMIT 1 FOR UPDATE")) {
+                ps.setString(1, draft.targetUuid().toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        Report existing = readReport(rs);
+                        try (PreparedStatement up = c.prepareStatement("UPDATE " + reports
+                                + " SET count = count + 1, reason = ? WHERE id = ?")) {
+                            up.setString(1, draft.reason());
+                            up.setLong(2, existing.id());
+                            up.executeUpdate();
+                        }
+                        return new Report(existing.id(), draft.reporterUuid(), draft.reporterName(),
+                                existing.targetUuid(), existing.targetName(), draft.reason(), draft.serverId(),
+                                existing.createdAt(), existing.count() + 1, existing.status(), existing.messageId());
+                    }
+                }
+            }
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + reports
+                    + " (reporter_uuid, reporter_name, target_uuid, target_name, reason, server_id, created_at)"
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS)) {
+                ps.setString(1, draft.reporterUuid().toString());
+                ps.setString(2, draft.reporterName());
+                ps.setString(3, draft.targetUuid().toString());
+                ps.setString(4, draft.targetName());
+                ps.setString(5, draft.reason());
+                ps.setString(6, draft.serverId());
+                ps.setLong(7, draft.createdAt());
+                ps.executeUpdate();
+                try (ResultSet keys = ps.getGeneratedKeys()) {
+                    long id = keys.next() ? keys.getLong(1) : 0;
+                    return new Report(id, draft.reporterUuid(), draft.reporterName(), draft.targetUuid(),
+                            draft.targetName(), draft.reason(), draft.serverId(), draft.createdAt(), 1, "OPEN", null);
+                }
+            }
+        });
+    }
+
+    public CompletableFuture<Void> setReportMessage(long reportId, long messageId) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("UPDATE " + reports + " SET message_id = ? WHERE id = ?")) {
+                ps.setLong(1, messageId);
+                ps.setLong(2, reportId);
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    public CompletableFuture<Optional<Report>> findReport(long reportId) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("SELECT " + REPORT_COLUMNS + " FROM " + reports
+                    + " WHERE id = ?")) {
+                ps.setLong(1, reportId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() ? Optional.of(readReport(rs)) : Optional.empty();
+                }
+            }
+        });
+    }
+
+    /** Marque le signalement comme traite ; false s'il l'etait deja (deux moderateurs en meme temps). */
+    public CompletableFuture<Boolean> closeReport(long reportId, String status, String handledBy) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("UPDATE " + reports
+                    + " SET status = ?, handled_by = ?, handled_at = ? WHERE id = ? AND status = 'OPEN'")) {
+                ps.setString(1, status);
+                ps.setString(2, handledBy);
+                ps.setLong(3, System.currentTimeMillis());
+                ps.setLong(4, reportId);
+                return ps.executeUpdate() == 1;
+            }
+        });
+    }
+
+    private static Report readReport(ResultSet rs) throws SQLException {
+        long messageId = rs.getLong(11);
+        return new Report(rs.getLong(1), UUID.fromString(rs.getString(2)), rs.getString(3),
+                UUID.fromString(rs.getString(4)), rs.getString(5), rs.getString(6), rs.getString(7),
+                rs.getLong(8), rs.getInt(9), rs.getString(10), rs.wasNull() ? null : messageId);
+    }
+
+    // ---------------------------------------------------------------- chat inter-serveurs
+
+    public CompletableFuture<Void> publishChat(String serverId, String playerName, String prefix, String message) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + chat
+                    + " (server_id, player_name, prefix, message, created_at) VALUES (?, ?, ?, ?, ?)")) {
+                ps.setString(1, serverId);
+                ps.setString(2, playerName);
+                ps.setString(3, prefix);
+                ps.setString(4, message);
+                ps.setLong(5, System.currentTimeMillis());
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    /** Messages des autres serveurs posterieurs a un identifiant donne. */
+    public CompletableFuture<List<ChatLine>> fetchChat(long afterId, String excludeServerId) {
+        return db.async(c -> {
+            List<ChatLine> lines = new ArrayList<>();
+            try (PreparedStatement ps = c.prepareStatement("SELECT id, server_id, player_name, prefix, message FROM "
+                    + chat + " WHERE id > ? AND server_id <> ? ORDER BY id LIMIT 50")) {
+                ps.setLong(1, afterId);
+                ps.setString(2, excludeServerId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        lines.add(new ChatLine(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4),
+                                rs.getString(5)));
+                    }
+                }
+            }
+            return lines;
+        });
+    }
+
+    /** Choix du joueur : participe-t-il au chat inter-serveurs ? Vide = reglage par defaut du serveur. */
+    public CompletableFuture<Optional<Boolean>> getChatGlobal(UUID uuid) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("SELECT chat_global FROM " + players + " WHERE uuid = ?")) {
+                ps.setString(1, uuid.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        boolean value = rs.getBoolean(1);
+                        return rs.wasNull() ? Optional.<Boolean>empty() : Optional.of(value);
+                    }
+                }
+            }
+            return Optional.<Boolean>empty();
+        });
+    }
+
+    public CompletableFuture<Void> setChatGlobal(UUID uuid, boolean global) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("UPDATE " + players
+                    + " SET chat_global = ? WHERE uuid = ?")) {
+                ps.setBoolean(1, global);
+                ps.setString(2, uuid.toString());
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    /** Dernier identifiant connu : au demarrage, on ne rejoue pas les anciens messages. */
+    public CompletableFuture<Long> lastChatId() {
+        return db.async(c -> {
+            try (Statement s = c.createStatement();
+                 ResultSet rs = s.executeQuery("SELECT COALESCE(MAX(id), 0) FROM " + chat)) {
+                return rs.next() ? rs.getLong(1) : 0L;
+            }
+        });
+    }
+
+    public CompletableFuture<Void> purgeChat(long before) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + chat + " WHERE created_at < ?")) {
+                ps.setLong(1, before);
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    // ---------------------------------------------------------------- empreintes d'adresse
+
+    public CompletableFuture<Void> saveIpHash(UUID uuid, String ipHash) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("UPDATE " + players
+                    + " SET ip_hash = ?, ip_seen_at = ? WHERE uuid = ?")) {
+                ps.setString(1, ipHash);
+                ps.setLong(2, System.currentTimeMillis());
+                ps.setString(3, uuid.toString());
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    /** Autres comptes vus depuis la meme adresse et actuellement bannis. */
+    public CompletableFuture<List<PlayerRef>> bannedSharingIp(String ipHash, UUID exclude, long now) {
+        return db.async(c -> {
+            List<PlayerRef> list = new ArrayList<>();
+            try (PreparedStatement ps = c.prepareStatement("SELECT p.uuid, p.name FROM " + players + " p"
+                    + " JOIN " + sanctions + " s ON s.uuid = p.uuid AND s.type = 'BAN' AND s.active = 1"
+                    + " AND (s.expires_at IS NULL OR s.expires_at > ?)"
+                    + " WHERE p.ip_hash = ? AND p.uuid <> ? GROUP BY p.uuid, p.name LIMIT 10")) {
+                ps.setLong(1, now);
+                ps.setString(2, ipHash);
+                ps.setString(3, exclude.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        list.add(new PlayerRef(UUID.fromString(rs.getString(1)), rs.getString(2)));
+                    }
+                }
+            }
+            return list;
+        });
+    }
+
+    /** Oubli des empreintes anciennes : une adresse est une donnee personnelle. */
+    public CompletableFuture<Void> purgeIpHashes(long before) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("UPDATE " + players
+                    + " SET ip_hash = NULL, ip_seen_at = NULL WHERE ip_seen_at IS NOT NULL AND ip_seen_at < ?")) {
+                ps.setLong(1, before);
+                ps.executeUpdate();
+            }
+            return null;
         });
     }
 

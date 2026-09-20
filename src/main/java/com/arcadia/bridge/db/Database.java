@@ -1,6 +1,8 @@
 package com.arcadia.bridge.db;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.concurrent.CompletableFuture;
@@ -137,6 +139,30 @@ public final class Database implements AutoCloseable {
                         + "code_hash CHAR(64) NOT NULL,"
                         + "expires_at BIGINT NOT NULL,"
                         + "UNIQUE KEY uk_code (code_hash))" + opts);
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("reports") + " ("
+                        + "id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,"
+                        + "reporter_uuid CHAR(36) NOT NULL,"
+                        + "reporter_name VARCHAR(16) NOT NULL,"
+                        + "target_uuid CHAR(36) NOT NULL,"
+                        + "target_name VARCHAR(16) NOT NULL,"
+                        + "reason VARCHAR(512) NOT NULL,"
+                        + "server_id VARCHAR(64) NOT NULL,"
+                        + "created_at BIGINT NOT NULL,"
+                        + "count INT NOT NULL DEFAULT 1,"
+                        + "status VARCHAR(16) NOT NULL DEFAULT 'OPEN',"
+                        + "handled_by VARCHAR(64) NULL,"
+                        + "handled_at BIGINT NULL,"
+                        + "message_id BIGINT NULL,"
+                        + "INDEX idx_open (status, target_uuid),"
+                        + "INDEX idx_message (message_id))" + opts);
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("chat") + " ("
+                        + "id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,"
+                        + "server_id VARCHAR(64) NOT NULL,"
+                        + "player_name VARCHAR(16) NOT NULL,"
+                        + "prefix VARCHAR(64) NULL,"
+                        + "message VARCHAR(512) NOT NULL,"
+                        + "created_at BIGINT NOT NULL,"
+                        + "INDEX idx_created (created_at))" + opts);
                 s.execute("CREATE TABLE IF NOT EXISTS " + t("servers") + " ("
                         + "server_id VARCHAR(64) NOT NULL PRIMARY KEY,"
                         + "display_name VARCHAR(64) NULL,"
@@ -164,9 +190,36 @@ public final class Database implements AutoCloseable {
                         + "INDEX idx_active (active, type),"
                         + "INDEX idx_discord (discord_id))" + opts);
             }
+            // Colonne ajoutee apres coup : empreinte d'adresse IP pour la detection de contournement.
+            addColumnIfMissing(c, t("players"), "ip_hash", "CHAR(64) NULL");
+            addColumnIfMissing(c, t("players"), "ip_seen_at", "BIGINT NULL");
+            addColumnIfMissing(c, t("players"), "chat_global", "TINYINT(1) NULL");
+            try (Statement s = c.createStatement()) {
+                s.execute("CREATE INDEX idx_ip ON " + t("players") + " (ip_hash)");
+            } catch (SQLException ignored) {
+                // L'index existe deja : MySQL ne propose pas de CREATE INDEX IF NOT EXISTS.
+            }
             return null;
         });
         LOGGER.info("[ArcadiaBridge] Tables MySQL pretes (prefixe '{}').", prefix);
+    }
+
+    /** MySQL 8 ne connait pas ADD COLUMN IF NOT EXISTS : on regarde d'abord le schema. */
+    private static void addColumnIfMissing(Connection c, String table, String column, String definition)
+            throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement("SELECT 1 FROM information_schema.columns"
+                + " WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?")) {
+            ps.setString(1, table);
+            ps.setString(2, column);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return;
+                }
+            }
+        }
+        try (Statement s = c.createStatement()) {
+            s.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
+        }
     }
 
     @Override
