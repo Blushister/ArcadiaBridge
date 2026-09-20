@@ -74,6 +74,11 @@ Les permissions passent par l'API de permissions NeoForge, donc par LuckPerms s'
 LuckPerms, elles reviennent aux opérateurs (niveau 2). `arcadiabridge.verification.bypass` dispense un
 grade de la vérification.
 
+> **Version de LuckPerms.** Sur NeoForge 21.1.221, utiliser **LuckPerms NeoForge 5.4.150** (celle des
+> serveurs Arcadia). La 5.4.140 ne charge plus les données des joueurs à la connexion sur cette version
+> de NeoForge et rend le serveur injouable, et les versions 5.5.x sont compilées pour Java 25 alors que
+> Minecraft 1.21.1 tourne en Java 21.
+
 ## Commandes Discord
 
 - `/verify <code>` — pour les joueurs, réponse visible uniquement par eux.

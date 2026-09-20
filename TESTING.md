@@ -39,6 +39,13 @@ Si la base n'est pas joignable, les tests d'intégration sont ignorés au lieu d
 - quatre `/verify` simultanés avec le même code : **un seul gagne** ;
 - suppression de liaison et purge des codes expirés.
 
+## LuckPerms dans l'environnement de test
+
+`run/mods/LuckPerms-NeoForge-5.4.150.jar`, stockage MariaDB (même base que le mod), avec les grades
+`default`, `vip`, `moderateur` (mute, warn, history) et `admin` (hérite de modo + ban, unlink, admin).
+Le joueur de test `Dev` est modérateur et **n'est pas opérateur**, sans quoi les tests de permission
+n'auraient aucune valeur.
+
 ## Reste à tester (nécessite un bot Discord et un client Minecraft)
 
 - chat dans les deux sens, blocage des mentions `@everyone`
