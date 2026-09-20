@@ -10,6 +10,7 @@ import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.compat.LuckPermsHook;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.discord.ChatWebhook;
+import com.arcadia.bridge.discord.DiscordLogs;
 import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.permission.Permissions;
 import com.arcadia.bridge.sanction.SanctionService;
@@ -71,9 +72,12 @@ public final class GameEvents {
         // En mode "kick", un joueur non verifie repart aussitot : inutile d'annoncer son arrivee.
         if (BridgeConfig.STATUS_JOIN_LEAVE.get() && !(mustVerify && BridgeConfig.isKickMode())) {
             ANNOUNCED.add(player.getUUID());
-            bridge.discord().sendChat(Lang.get("discord.status.join", "name", Text.forDiscord(player.getGameProfile().getName())));
+            announce(bridge, player, "discord.status.join", "name", player.getGameProfile().getName(),
+                    DiscordLogs.Kind.JOIN);
         }
         bridge.verification().onJoin(player);
+        bridge.crossChat().onJoin(player);
+        bridge.ipGuard().onJoin(player);
     }
 
     @SubscribeEvent
@@ -83,8 +87,10 @@ public final class GameEvents {
             return;
         }
         bridge.verification().onLeave(player);
+        bridge.crossChat().onLeave(player);
         if (ANNOUNCED.remove(player.getUUID()) && BridgeConfig.STATUS_JOIN_LEAVE.get() && !bridge.isStopping()) {
-            bridge.discord().sendChat(Lang.get("discord.status.leave", "name", Text.forDiscord(player.getGameProfile().getName())));
+            announce(bridge, player, "discord.status.leave", "name", player.getGameProfile().getName(),
+                    DiscordLogs.Kind.LEAVE);
         }
     }
 
@@ -110,11 +116,17 @@ public final class GameEvents {
         }
     }
 
-    /** Relais vers Discord : en dernier, et seulement si aucun mod n'a annule le message. */
+    /** Relais vers Discord et vers les autres serveurs, seulement si aucun mod n'a annule le message. */
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onChatRelay(ServerChatEvent event) {
         Bridge bridge = Bridge.get();
-        if (bridge == null || !BridgeConfig.CHAT_TO_DISCORD.get() || !bridge.discord().isReady()) {
+        if (bridge == null) {
+            return;
+        }
+        if (!BridgeConfig.CHAT_TO_DISCORD.get() || !bridge.discord().isReady()) {
+            String prefixOnly = BridgeConfig.CHAT_LUCKPERMS_PREFIX.get()
+                    ? LuckPermsHook.prefix(event.getPlayer().getUUID()) : "";
+            bridge.crossChat().publish(event.getPlayer(), prefixOnly, event.getRawText());
             return;
         }
         ServerPlayer player = event.getPlayer();
@@ -122,6 +134,9 @@ public final class GameEvents {
         String prefix = Text.forDiscord(rawPrefix);
         String name = Text.forDiscord(player.getGameProfile().getName());
         String message = Text.forDiscord(event.getRawText());
+
+        // Les autres serveurs recoivent le message ; leur propre salon Discord s'en charge de leur cote.
+        bridge.crossChat().publish(player, rawPrefix, event.getRawText());
 
         if (ChatWebhook.isConfigured()) {
             // Avec un webhook, le pseudo et la tete du joueur portent l'information : pas de mise en forme.
@@ -175,7 +190,25 @@ public final class GameEvents {
             return;
         }
         String message = event.getSource().getLocalizedDeathMessage(player).getString();
-        bridge.discord().sendChat(Lang.get("discord.status.death", "message", Text.forDiscord(message)));
+        announce(bridge, player, "discord.status.death", "message", message, DiscordLogs.Kind.DEATH);
+    }
+
+    /**
+     * Annonce liee a un joueur : encart avec sa tete, ou simple ligne si les encarts sont desactives.
+     *
+     * <p>Seule la variable est nettoyee, jamais le modele : celui-ci contient volontairement du markdown
+     * (le pseudo en gras), qui serait affiche tel quel s'il etait echappe.
+     */
+    private static void announce(Bridge bridge, ServerPlayer player, String key, String variable, String value,
+                                 DiscordLogs.Kind kind) {
+        if (BridgeConfig.isRichPresentation()) {
+            // Dans un encart, le markdown n'a pas cours : on affiche le texte brut.
+            bridge.discord().sendChatEmbed(DiscordLogs.playerStatus(
+                    Lang.get(key, variable, Text.stripFormatting(value)), player.getUUID(),
+                    player.getGameProfile().getName(), kind));
+        } else {
+            bridge.discord().sendChat(Lang.get(key, variable, Text.forDiscord(value)));
+        }
     }
 
     @SubscribeEvent

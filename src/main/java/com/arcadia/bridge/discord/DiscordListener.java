@@ -11,6 +11,8 @@ import com.arcadia.bridge.verification.VerificationService.VerifyResult;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.events.guild.GuildBanEvent;
 import net.dv8tion.jda.api.events.guild.GuildUnbanEvent;
+import com.arcadia.bridge.report.ReportService;
+import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
@@ -117,6 +119,42 @@ public final class DiscordListener extends ListenerAdapter {
                     event.getHook().editOriginal(DiscordText.verifyResult(null)).queue();
                     return null;
                 });
+    }
+
+    /** Boutons des signalements : la permission est revalidee au clic, pas seulement a l'affichage. */
+    @Override
+    public void onButtonInteraction(ButtonInteractionEvent event) {
+        String id = event.getComponentId();
+        if (!Bridge.isPrimary() || !id.startsWith(ReportService.BUTTON_PREFIX)) {
+            return;
+        }
+        String[] parts = id.substring(ReportService.BUTTON_PREFIX.length()).split(":");
+        if (parts.length != 2) {
+            return;
+        }
+        if (!SlashCommands.isStaffMember(event.getMember())) {
+            event.reply(Lang.get("discord.no_permission")).setEphemeral(true).queue();
+            return;
+        }
+        long reportId;
+        try {
+            reportId = Long.parseLong(parts[0]);
+        } catch (NumberFormatException e) {
+            return;
+        }
+        String moderator = event.getUser().getName() + " (Discord)";
+        event.deferReply(true).queue();
+        bridge.reports().handleAction(reportId, parts[1], moderator).thenAccept(outcome -> {
+            event.getHook().editOriginal(outcome.message()).queue();
+            if (outcome.handled()) {
+                // Le signalement est clos : on retire les boutons pour eviter un second clic.
+                event.getMessage().editMessageComponents().queue(null, error -> { });
+            }
+        }).exceptionally(error -> {
+            bridge.discord().logFailure(error);
+            event.getHook().editOriginal(Lang.get("discord.error")).queue();
+            return null;
+        });
     }
 
     @Override

@@ -4,12 +4,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import com.arcadia.bridge.Bridge;
+import com.arcadia.bridge.chat.CrossServerChat;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.data.Models.PlayerRef;
 import com.arcadia.bridge.data.Models.Sanction;
 import com.arcadia.bridge.data.Models.SanctionType;
 import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.permission.Permissions;
+import com.arcadia.bridge.report.ReportService;
 import com.arcadia.bridge.sanction.SanctionService;
 import com.arcadia.bridge.sanction.SanctionService.Request;
 import com.arcadia.bridge.util.Durations;
@@ -72,6 +74,17 @@ public final class BridgeCommands {
                 .then(player().executes(BridgeCommands::unlink)));
 
         d.register(Commands.literal("arcadia_verify").executes(BridgeCommands::verify));
+
+        d.register(Commands.literal("report")
+                .then(Commands.argument("player", StringArgumentType.word())
+                        .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(
+                                ctx.getSource().getOnlinePlayerNames(), builder))
+                        .then(reason().executes(BridgeCommands::report))));
+
+        d.register(Commands.literal("chat")
+                .executes(ctx -> chatMode(ctx, null))
+                .then(Commands.literal("global").executes(ctx -> chatMode(ctx, true)))
+                .then(Commands.literal("local").executes(ctx -> chatMode(ctx, false))));
 
         d.register(staff("arcadia_bridge", Permissions.ADMIN)
                 .then(Commands.literal("status").executes(BridgeCommands::status))
@@ -187,6 +200,71 @@ public final class BridgeCommands {
             return 0;
         }
         bridge.verification().showStatus(player);
+        return 1;
+    }
+
+    /** /report &lt;joueur&gt; &lt;raison&gt; : transmis au staff sur Discord. */
+    private static int report(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        Bridge bridge = Bridge.get();
+        ServerPlayer reporter = source.getPlayer();
+        if (reporter == null) {
+            source.sendFailure(Lang.mc("cmd.players_only"));
+            return 0;
+        }
+        if (bridge == null || bridge.repository() == null || !ReportService.isEnabled()) {
+            source.sendFailure(Lang.mc("common.unavailable"));
+            return 0;
+        }
+        long wait = bridge.reports().cooldownLeft(reporter.getUUID());
+        if (wait > 0) {
+            source.sendFailure(Lang.mc("cmd.report.cooldown", "seconds", wait));
+            return 0;
+        }
+        String reason = arg(ctx, "reason").trim();
+        if (reason.length() > 500) {
+            reason = reason.substring(0, 500);
+        }
+        String finalReason = reason;
+        String targetName = arg(ctx, "player");
+        if (targetName.equalsIgnoreCase(reporter.getGameProfile().getName())) {
+            source.sendFailure(Lang.mc("cmd.report.not_yourself"));
+            return 0;
+        }
+        bridge.resolvePlayer(targetName)
+                .thenCompose(target -> target == null
+                        ? CompletableFuture.completedFuture((Component) Lang.mc("cmd.player_unknown", "name", targetName))
+                        : bridge.reports().submit(reporter, target, finalReason)
+                                .thenApply(r -> (Component) Lang.mc("cmd.report.done", "name", target.name())))
+                .whenComplete((message, error) -> bridge.runOnMain(() -> {
+                    if (error != null) {
+                        LOGGER.error("[ArcadiaBridge] Signalement echoue", error);
+                        source.sendFailure(Lang.mc("common.error"));
+                    } else {
+                        source.sendSuccess(() -> message, false);
+                    }
+                }));
+        return 1;
+    }
+
+    /** /chat [global|local] : participer ou non au chat commun a tous les serveurs. */
+    private static int chatMode(CommandContext<CommandSourceStack> ctx, Boolean global) {
+        CommandSourceStack source = ctx.getSource();
+        Bridge bridge = Bridge.get();
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            source.sendFailure(Lang.mc("cmd.players_only"));
+            return 0;
+        }
+        if (bridge == null || !CrossServerChat.isEnabled()) {
+            source.sendFailure(Lang.mc("cmd.chat.disabled"));
+            return 0;
+        }
+        if (global != null) {
+            bridge.crossChat().setGlobal(player.getUUID(), global);
+        }
+        boolean current = bridge.crossChat().isGlobal(player.getUUID());
+        source.sendSuccess(() -> Lang.mc(current ? "cmd.chat.global" : "cmd.chat.local"), false);
         return 1;
     }
 

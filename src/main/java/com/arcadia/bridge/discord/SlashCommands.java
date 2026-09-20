@@ -207,6 +207,10 @@ final class SlashCommands {
                 });
     }
 
+    static boolean isStaffMember(Member member) {
+        return isStaff(member);
+    }
+
     private static boolean isStaff(Member member) {
         if (member == null) {
             return false;

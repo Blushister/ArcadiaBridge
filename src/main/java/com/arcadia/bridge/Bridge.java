@@ -9,6 +9,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import com.arcadia.bridge.chat.CrossServerChat;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.data.BridgeCache;
 import com.arcadia.bridge.data.Models.Link;
@@ -19,6 +20,8 @@ import com.arcadia.bridge.data.Repository;
 import com.arcadia.bridge.db.Database;
 import com.arcadia.bridge.discord.DiscordBot;
 import com.arcadia.bridge.i18n.Lang;
+import com.arcadia.bridge.report.ReportService;
+import com.arcadia.bridge.security.IpGuard;
 import com.arcadia.bridge.sanction.SanctionService;
 import com.arcadia.bridge.verification.VerificationService;
 import com.mojang.logging.LogUtils;
@@ -42,6 +45,9 @@ public final class Bridge {
     private final DiscordBot discord;
     private final VerificationService verification;
     private final SanctionService sanctions;
+    private final ReportService reports;
+    private final CrossServerChat crossChat;
+    private final IpGuard ipGuard;
     private final ScheduledExecutorService scheduler;
 
     /** Photo des joueurs connectes, prise sur le thread principal et lue par le thread de synchro. */
@@ -56,6 +62,9 @@ public final class Bridge {
         this.discord = new DiscordBot(this);
         this.verification = new VerificationService(this);
         this.sanctions = new SanctionService(this);
+        this.reports = new ReportService(this);
+        this.crossChat = new CrossServerChat(this);
+        this.ipGuard = new IpGuard(this);
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "ArcadiaBridge-Sync");
             t.setDaemon(true);
@@ -79,8 +88,14 @@ public final class Bridge {
             bridge.syncNow();
         }
         bridge.discord.start();
+        bridge.crossChat.start();
         int interval = BridgeConfig.SANCTIONS_POLL_SECONDS.get();
         bridge.scheduler.scheduleWithFixedDelay(bridge::safeSync, interval, interval, TimeUnit.SECONDS);
+        if (CrossServerChat.isEnabled()) {
+            int chatInterval = BridgeConfig.CHAT_CROSS_SERVER_POLL.get();
+            bridge.scheduler.scheduleWithFixedDelay(bridge.crossChat::poll, chatInterval, chatInterval,
+                    TimeUnit.SECONDS);
+        }
     }
 
     static void stop() {
@@ -151,6 +166,9 @@ public final class Bridge {
             sanctions.handleExpired(repository.expireDue(now).join());
             sanctions.refreshDiscordTimeouts(now);
             repository.purgeExpiredCodes(now);
+            // Le chat inter-serveurs n'est qu'un relais : on ne garde pas d'historique en base.
+            repository.purgeChat(now - TimeUnit.MINUTES.toMillis(5));
+            ipGuard.purge();
         }
     }
 
@@ -193,6 +211,18 @@ public final class Bridge {
 
     public SanctionService sanctions() {
         return sanctions;
+    }
+
+    public ReportService reports() {
+        return reports;
+    }
+
+    public CrossServerChat crossChat() {
+        return crossChat;
+    }
+
+    public IpGuard ipGuard() {
+        return ipGuard;
     }
 
     /** @return le depot SQL, ou null si la base est indisponible. */

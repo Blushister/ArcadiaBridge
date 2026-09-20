@@ -1,6 +1,7 @@
 package com.arcadia.bridge.discord;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.EnumSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -9,6 +10,7 @@ import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.mojang.logging.LogUtils;
 import com.arcadia.bridge.i18n.Lang;
+import com.arcadia.bridge.report.ReportService;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.Permission;
@@ -20,6 +22,8 @@ import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.UserSnowflake;
 import net.dv8tion.jda.api.entities.Webhook;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.messages.MessageRequest;
 import org.slf4j.Logger;
@@ -88,7 +92,7 @@ public final class DiscordBot {
      * classiques du bot.
      */
     private void ensureWebhook() {
-        if (!BridgeConfig.CHAT_WEBHOOK_URL.get().isBlank()) {
+        if (!BridgeConfig.isRichPresentation() || !BridgeConfig.CHAT_WEBHOOK_URL.get().isBlank()) {
             return;
         }
         TextChannel channel = channel(BridgeConfig.snowflake(BridgeConfig.DISCORD_CHAT_CHANNEL_ID));
@@ -169,11 +173,64 @@ public final class DiscordBot {
         }
     }
 
+    /** Encart poste dans le salon de chat (annonces de connexion, de mort, de demarrage). */
+    public void sendChatEmbed(MessageEmbed embed) {
+        TextChannel channel = channel(BridgeConfig.snowflake(BridgeConfig.DISCORD_CHAT_CHANNEL_ID));
+        if (isReady() && channel != null) {
+            channel.sendMessageEmbeds(embed).queue(null, this::logFailure);
+        }
+    }
+
+    /** Version bloquante (max 5 s) pour l'annonce d'arret du serveur. */
+    public void sendChatEmbedBlocking(MessageEmbed embed) {
+        TextChannel channel = channel(BridgeConfig.snowflake(BridgeConfig.DISCORD_CHAT_CHANNEL_ID));
+        if (isReady() && channel != null) {
+            try {
+                channel.sendMessageEmbeds(embed).submit().get(5, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                logFailure(e);
+            }
+        }
+    }
+
     public void sendLog(MessageEmbed embed) {
         TextChannel channel = channel(BridgeConfig.snowflake(BridgeConfig.DISCORD_LOGS_CHANNEL_ID));
         if (isReady() && channel != null) {
             channel.sendMessageEmbeds(embed).queue(null, this::logFailure);
         }
+    }
+
+    /** Salon des signalements : celui configure, sinon le salon de logs. */
+    private TextChannel reportChannel() {
+        long id = BridgeConfig.snowflake(BridgeConfig.REPORTS_CHANNEL_ID);
+        return channel(id != 0 ? id : BridgeConfig.snowflake(BridgeConfig.DISCORD_LOGS_CHANNEL_ID));
+    }
+
+    /** Poste un signalement avec ses boutons d'action, puis transmet l'identifiant du message. */
+    public void sendReport(MessageEmbed embed, long reportId, java.util.function.LongConsumer onSent) {
+        TextChannel channel = reportChannel();
+        if (!isReady() || channel == null) {
+            return;
+        }
+        channel.sendMessageEmbeds(embed).setComponents(ActionRow.of(reportButtons(reportId)))
+                .queue(message -> onSent.accept(message.getIdLong()), this::logFailure);
+    }
+
+    public void editReportMessage(long messageId, MessageEmbed embed, long reportId) {
+        TextChannel channel = reportChannel();
+        if (isReady() && channel != null) {
+            channel.editMessageEmbedsById(messageId, embed)
+                    .setComponents(ActionRow.of(reportButtons(reportId)))
+                    .queue(null, this::logFailure);
+        }
+    }
+
+    private static List<Button> reportButtons(long reportId) {
+        String base = ReportService.BUTTON_PREFIX + reportId + ":";
+        return List.of(
+                Button.danger(base + ReportService.ACTION_BAN, Lang.get("report.button.ban")),
+                Button.primary(base + ReportService.ACTION_MUTE, Lang.get("report.button.mute")),
+                Button.secondary(base + ReportService.ACTION_IGNORE, Lang.get("report.button.ignore")));
     }
 
     // ---------------------------------------------------------------- moderation
