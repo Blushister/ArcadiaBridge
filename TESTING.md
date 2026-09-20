@@ -46,6 +46,27 @@ Si la base n'est pas joignable, les tests d'intégration sont ignorés au lieu d
 Le joueur de test `Dev` est modérateur et **n'est pas opérateur**, sans quoi les tests de permission
 n'auraient aucune valeur.
 
+## Deux serveurs en parallèle
+
+`./gradlew runServer` (id `test1`, primaire, port 25565, salon `#mc-test`) et `./gradlew runServer2`
+(id `test2`, secondaire, port 25566, salon `#mc-test-2`) partagent la même base. Les clients se lancent
+avec `runClient` (pseudo `Dev`) et `runClient2` (pseudo `Dev2`).
+
+RCON est actif sur 25575 et 25576 pour piloter les serveurs sans client.
+
+## Couverture (suite)
+
+`ReportsAndChatTest` :
+
+- les signalements répétés sur un même joueur sont regroupés, mais un signalement déjà traité n'absorbe
+  pas les suivants ;
+- un signalement ne peut être traité qu'une fois, même si deux modérateurs cliquent ensemble ;
+- le chat inter-serveurs ne remonte que les messages des autres serveurs, et n'est pas rejoué ;
+- la détection d'adresse ne remonte que les comptes **bannis**, pas les colocataires ;
+- les empreintes d'adresse sont oubliées après le délai.
+
+`WebhookUrlTest` : les deux formes d'URL de webhook (avec ou sans numéro de version) sont acceptées.
+
 ## Reste à tester (nécessite un bot Discord et un client Minecraft)
 
 - chat dans les deux sens, blocage des mentions `@everyone`

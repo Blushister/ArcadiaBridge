@@ -7,8 +7,14 @@ Réécriture complète du mod `arcadiabridge 0.5.13` (aucun code repris de l'anc
 
 - **Chat dans les deux sens** entre un salon Discord et le chat Minecraft, avec le préfixe LuckPerms du joueur.
 - **Annonces** : démarrage et arrêt du serveur, connexions, déconnexions, morts.
-- **Chat avec la tête du joueur** : si le bot peut créer un webhook, chaque message porte le pseudo et
-  l'avatar du joueur au lieu d'un message uniforme du bot.
+- **Chat inter-serveurs** : les joueurs des différents serveurs Arcadia se parlent, chacun pouvant
+  rester en local avec `/chat`. Côté Discord, chaque serveur garde son propre salon.
+- **Signalements** : `/report <joueur> <raison>` en jeu, transmis au staff sur Discord avec des boutons
+  Bannir / Rendre muet / Ignorer.
+- **Alerte de contournement de ban** : prévient le staff quand un compte banni partage l'adresse d'un
+  joueur qui se connecte (alerte seulement, jamais de sanction automatique).
+- **Deux styles d'affichage** : compact (tout par le bot, une ligne par événement) ou riche (messages
+  des joueurs via webhook avec leur tête, annonces en encarts colorés).
 - **`/online`** sur Discord : qui est connecté, sur quel serveur ; et le statut du bot affiche le nombre
   total de joueurs.
 - **Vérification des comptes** : à sa première connexion, le joueur reçoit un code privé et le saisit sur
@@ -44,11 +50,18 @@ Sections principales de `config/arcadiabridge.toml` :
 
 | Section | À renseigner |
 |---|---|
-| `general` | `serverId` (unique par serveur), `serverName`, `language` |
+| `general` | `serverId` (unique par serveur), `serverName`, `language`, `presentation` |
 | `database` | hôte, base, utilisateur, mot de passe de la base partagée |
 | `discord` | `token`, `guildId`, `chatChannelId`, `logsChannelId`, `primary` |
 | `verification` | `enabled`, `mode` (`grace` ou `kick`), durées |
 | `sanctions` | synchronisation Discord, intervalle de synchro, nombre max d'avertissements |
+| `chat` | relais, format, webhook, chat inter-serveurs |
+| `reports` | salon des signalements, délai anti-abus, durées des boutons |
+| `security` | alerte de contournement de ban, conservation des empreintes d'adresse |
+
+**`presentation`** vaut `compact` (défaut) ou `riche`. En `compact`, tout est posté par le bot en une
+ligne. En `riche`, les messages des joueurs passent par un webhook (pseudo et tête de skin) et les
+annonces deviennent des encarts colorés. Le bot ne crée de webhook que dans ce second cas.
 
 **`primary`** : si plusieurs serveurs utilisent le même bot, un seul doit avoir `primary = true`. C'est lui
 qui enregistre les commandes slash, traite `/verify`, réagit aux bans faits sur Discord et applique les
@@ -72,6 +85,8 @@ Les textes affichés sont modifiables dans `config/arcadiabridge/lang/<langue>.j
 | `/arcadia_unlink <joueur>` | `arcadiabridge.command.unlink` |
 | `/arcadia_bridge status\|reloadlang` | `arcadiabridge.command.admin` |
 | `/arcadia_verify` | tout le monde |
+| `/report <joueur> <raison>` | tout le monde (délai anti-abus) |
+| `/chat [global\|local]` | tout le monde |
 
 Durées : `30m`, `2h`, `7d`, `1w`, ou combinées (`1d12h`).
 
@@ -89,6 +104,9 @@ grade de la vérification.
 - `/verify <code>` — pour les joueurs, réponse visible uniquement par eux.
 - `/mc ban|tempban|unban|mute|unmute|warn|info|unlink <joueur> …` — pour le staff (permission Discord
   « Bannir des membres », ou un rôle listé dans `staffRoleIds`).
+- `/online` — pour tout le monde : qui est connecté et sur quel serveur.
+- Les **boutons des signalements** revalident la permission au clic : un message reste cliquable
+  longtemps après, y compris par quelqu'un qui a perdu son rôle entre-temps.
 
 ## Sécurité
 
@@ -105,7 +123,9 @@ Les failles de l'ancien mod sont corrigées :
 - un `/verify CODE` ou `!verify CODE` écrit en message texte est traité **puis effacé**, pour que le code
   ne reste pas affiché dans le salon ;
 - codes couleur et markdown neutralisés dans les deux sens ;
-- requêtes SQL exclusivement préparées.
+- requêtes SQL exclusivement préparées ;
+- les adresses IP ne sont **jamais stockées** : seule une empreinte salée l'est, oubliée après le délai
+  configuré (90 jours par défaut), et elle ne sert qu'à alerter le staff.
 
 ## Notes techniques
 
@@ -127,6 +147,8 @@ Les failles de l'ancien mod sont corrigées :
 | `ab_codes` | codes de vérification en attente (hachés) |
 | `ab_sanctions` | bans, mutes, avertissements, avec expiration et historique |
 | `ab_servers` | état de chaque serveur (joueurs connectés, dernier signe de vie) |
+| `ab_reports` | signalements, leur regroupement et leur traitement |
+| `ab_chat` | relais du chat entre serveurs (purgé toutes les 5 minutes) |
 
 Les tables de l'ancien mod ne sont pas réutilisées. Les joueurs devront refaire `/verify` une fois —
 c'est volontaire, les anciennes liaisons n'étant pas fiables.
@@ -136,4 +158,8 @@ c'est volontaire, les anciennes liaisons n'étant pas fiables.
 ```bash
 ./gradlew build        # jar dans build/libs/arcadiabridge-<version>.jar
 ./gradlew runServer    # serveur de test (dossier run/)
+./gradlew runServer2   # second serveur, même base, pour tester le multi-serveur
+./gradlew runClient    # client de test (pseudo Dev)
+./gradlew runClient2   # second client (pseudo Dev2)
+./gradlew test         # tests (voir TESTING.md)
 ```
