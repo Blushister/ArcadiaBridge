@@ -7,6 +7,10 @@ Réécriture complète du mod `arcadiabridge 0.5.13` (aucun code repris de l'anc
 
 - **Chat dans les deux sens** entre un salon Discord et le chat Minecraft, avec le préfixe LuckPerms du joueur.
 - **Annonces** : démarrage et arrêt du serveur, connexions, déconnexions, morts.
+- **Chat avec la tête du joueur** : si le bot peut créer un webhook, chaque message porte le pseudo et
+  l'avatar du joueur au lieu d'un message uniforme du bot.
+- **`/online`** sur Discord : qui est connecté, sur quel serveur ; et le statut du bot affiche le nombre
+  total de joueurs.
 - **Vérification des comptes** : à sa première connexion, le joueur reçoit un code privé et le saisit sur
   Discord avec `/verify`.
 - **Sanctions** : ban, ban temporaire, mute, mute temporaire, avertissements, avec historique.
@@ -29,7 +33,8 @@ Le bot a besoin de :
 
 - l'intent privilégié **Message Content** (portail développeur Discord, onglet Bot) ;
 - les permissions **Voir les salons**, **Envoyer des messages**, **Gérer les messages** (pour effacer un
-  `!verify` contenant un code), **Bannir des membres** et **Exclure temporairement des membres** ;
+  `!verify` contenant un code), **Bannir des membres**, **Exclure temporairement des membres** et
+  **Gérer les webhooks** (pour créer lui-même le webhook du chat) ;
 - **ne pas** avoir la permission « Mentionner @everyone » : le mod bloque déjà toutes les mentions,
   mais autant ne pas la donner.
 
@@ -121,6 +126,7 @@ Les failles de l'ancien mod sont corrigées :
 | `ab_links` | liaisons Minecraft ↔ Discord |
 | `ab_codes` | codes de vérification en attente (hachés) |
 | `ab_sanctions` | bans, mutes, avertissements, avec expiration et historique |
+| `ab_servers` | état de chaque serveur (joueurs connectés, dernier signe de vie) |
 
 Les tables de l'ancien mod ne sont pas réutilisées. Les joueurs devront refaire `/verify` une fois —
 c'est volontaire, les anciennes liaisons n'étant pas fiables.

@@ -44,6 +44,23 @@ public final class Models {
         }
     }
 
+    /**
+     * Etat d'un serveur Arcadia, ecrit a chaque cycle de synchronisation dans la base partagee.
+     * Permet a Discord de savoir qui est en ligne et ou, sans lien direct entre les serveurs.
+     */
+    public record ServerStatus(String serverId, String displayName, int players, int maxPlayers,
+                               java.util.List<String> names, long updatedAt) {
+
+        /** Un serveur qui n'a pas donne signe de vie depuis une minute est considere hors ligne. */
+        public boolean isOnline(long now) {
+            return now - updatedAt < 60_000L;
+        }
+
+        public String label() {
+            return displayName == null || displayName.isBlank() ? serverId : displayName;
+        }
+    }
+
     public enum RedeemStatus {
         SUCCESS, INVALID_CODE, ACCOUNT_ALREADY_LINKED, DISCORD_ALREADY_LINKED
     }

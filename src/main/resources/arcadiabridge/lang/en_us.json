@@ -104,5 +104,11 @@
   "log.field.reason": "Reason",
   "log.field.by": "By",
   "log.field.server": "Server",
-  "log.field.duration": "Duration"
+  "log.field.duration": "Duration",
+  "discord.presence": "{players} players online",
+  "discord.cmd.online": "See who is connected on the servers",
+  "discord.online.title": "Players online: {total}",
+  "discord.online.none": "No server online right now.",
+  "discord.online.empty": "nobody",
+  "discord.online.offline": "Offline servers"
 }

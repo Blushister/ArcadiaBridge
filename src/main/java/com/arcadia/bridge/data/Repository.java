@@ -20,6 +20,7 @@ import com.arcadia.bridge.data.Models.PlayerRef;
 import com.arcadia.bridge.data.Models.RedeemResult;
 import com.arcadia.bridge.data.Models.RedeemStatus;
 import com.arcadia.bridge.data.Models.Sanction;
+import com.arcadia.bridge.data.Models.ServerStatus;
 import com.arcadia.bridge.data.Models.SanctionType;
 import com.arcadia.bridge.db.Database;
 
@@ -31,6 +32,7 @@ public final class Repository {
     private final String links;
     private final String codes;
     private final String sanctions;
+    private final String servers;
 
     public Repository(Database db) {
         this.db = db;
@@ -38,6 +40,52 @@ public final class Repository {
         this.links = db.t("links");
         this.codes = db.t("codes");
         this.sanctions = db.t("sanctions");
+        this.servers = db.t("servers");
+    }
+
+    // ---------------------------------------------------------------- etat des serveurs
+
+    /** Signale que ce serveur est vivant, avec les joueurs connectes. */
+    public CompletableFuture<Void> heartbeat(String serverId, String displayName, List<String> names, int maxPlayers) {
+        String joined = String.join(",", names);
+        if (joined.length() > 4000) {
+            joined = joined.substring(0, 4000);
+        }
+        String playerNames = joined;
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + servers
+                    + " (server_id, display_name, players, max_players, player_names, updated_at)"
+                    + " VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE display_name = VALUES(display_name),"
+                    + " players = VALUES(players), max_players = VALUES(max_players),"
+                    + " player_names = VALUES(player_names), updated_at = VALUES(updated_at)")) {
+                ps.setString(1, serverId);
+                ps.setString(2, displayName);
+                ps.setInt(3, names.size());
+                ps.setInt(4, maxPlayers);
+                ps.setString(5, playerNames);
+                ps.setLong(6, System.currentTimeMillis());
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    public CompletableFuture<List<ServerStatus>> loadServers() {
+        return db.async(c -> {
+            List<ServerStatus> list = new ArrayList<>();
+            try (Statement s = c.createStatement();
+                 ResultSet rs = s.executeQuery("SELECT server_id, display_name, players, max_players, player_names,"
+                         + " updated_at FROM " + servers + " ORDER BY server_id")) {
+                while (rs.next()) {
+                    String names = rs.getString(5);
+                    List<String> players = names == null || names.isBlank() ? List.of()
+                            : List.of(names.split(","));
+                    list.add(new ServerStatus(rs.getString(1), rs.getString(2), rs.getInt(3), rs.getInt(4),
+                            players, rs.getLong(6)));
+                }
+            }
+            return list;
+        });
     }
 
     // ---------------------------------------------------------------- joueurs

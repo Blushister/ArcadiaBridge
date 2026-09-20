@@ -98,6 +98,7 @@ public final class DiscordListener extends ListenerAdapter {
         switch (event.getName()) {
             case SlashCommands.VERIFY -> handleSlashVerify(event);
             case SlashCommands.MC -> SlashCommands.handleStaff(bridge, event);
+            case SlashCommands.ONLINE -> SlashCommands.handleOnline(bridge, event);
             default -> { }
         }
     }

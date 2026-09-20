@@ -137,6 +137,13 @@ public final class Database implements AutoCloseable {
                         + "code_hash CHAR(64) NOT NULL,"
                         + "expires_at BIGINT NOT NULL,"
                         + "UNIQUE KEY uk_code (code_hash))" + opts);
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("servers") + " ("
+                        + "server_id VARCHAR(64) NOT NULL PRIMARY KEY,"
+                        + "display_name VARCHAR(64) NULL,"
+                        + "players INT NOT NULL DEFAULT 0,"
+                        + "max_players INT NOT NULL DEFAULT 0,"
+                        + "player_names TEXT NULL,"
+                        + "updated_at BIGINT NOT NULL)" + opts);
                 s.execute("CREATE TABLE IF NOT EXISTS " + t("sanctions") + " ("
                         + "id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,"
                         + "type VARCHAR(8) NOT NULL,"

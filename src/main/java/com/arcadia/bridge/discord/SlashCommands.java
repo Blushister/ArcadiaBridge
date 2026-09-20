@@ -7,15 +7,20 @@ import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.data.Models.PlayerRef;
 import com.arcadia.bridge.data.Models.Sanction;
+import com.arcadia.bridge.data.Models.ServerStatus;
 import com.arcadia.bridge.data.Models.SanctionType;
 import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.sanction.SanctionService;
 import com.arcadia.bridge.sanction.SanctionService.Request;
 import com.arcadia.bridge.util.Durations;
 import com.mojang.logging.LogUtils;
+import java.awt.Color;
+
+import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
@@ -30,6 +35,7 @@ final class SlashCommands {
 
     static final String VERIFY = "verify";
     static final String MC = "mc";
+    static final String ONLINE = "online";
     private static final Logger LOGGER = LogUtils.getLogger();
 
     private SlashCommands() {
@@ -39,6 +45,7 @@ final class SlashCommands {
         guild.updateCommands().addCommands(
                 Commands.slash(VERIFY, Lang.get("discord.cmd.verify"))
                         .addOption(OptionType.STRING, "code", Lang.get("discord.cmd.verify.code"), true),
+                Commands.slash(ONLINE, Lang.get("discord.cmd.online")),
                 Commands.slash(MC, Lang.get("discord.cmd.mc"))
                         .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS))
                         .addSubcommands(
@@ -61,6 +68,43 @@ final class SlashCommands {
     private static SubcommandData sub(String name) {
         return new SubcommandData(name, Lang.get("discord.cmd.mc." + name))
                 .addOption(OptionType.STRING, "joueur", Lang.get("discord.cmd.opt.player"), true);
+    }
+
+    /** /online : accessible a tout le monde, liste les serveurs et leurs joueurs. */
+    static void handleOnline(Bridge bridge, SlashCommandInteractionEvent event) {
+        if (bridge.repository() == null) {
+            event.reply(Lang.get("discord.unavailable")).setEphemeral(true).queue();
+            return;
+        }
+        event.deferReply().queue();
+        bridge.repository().loadServers().thenAccept(servers -> {
+            long now = System.currentTimeMillis();
+            List<ServerStatus> online = servers.stream().filter(s -> s.isOnline(now)).toList();
+            int total = online.stream().mapToInt(ServerStatus::players).sum();
+            EmbedBuilder eb = new EmbedBuilder()
+                    .setColor(new Color(0x3B, 0xA5, 0x5D))
+                    .setTitle(Lang.get("discord.online.title", "total", total));
+            if (online.isEmpty()) {
+                eb.setDescription(Lang.get("discord.online.none"));
+            }
+            for (ServerStatus s : online) {
+                String names = s.names().isEmpty() ? Lang.get("discord.online.empty")
+                        : escape(String.join(", ", s.names()));
+                eb.addField(escape(s.label()) + " — " + s.players() + "/" + s.maxPlayers(),
+                        DiscordBot.truncate(names, MessageEmbed.VALUE_MAX_LENGTH), false);
+            }
+            // Un serveur muet depuis plus d'une minute est signale comme hors ligne.
+            String offline = servers.stream().filter(s -> !s.isOnline(now)).map(s -> escape(s.label()))
+                    .collect(java.util.stream.Collectors.joining(", "));
+            if (!offline.isEmpty()) {
+                eb.addField(Lang.get("discord.online.offline"), offline, false);
+            }
+            event.getHook().editOriginalEmbeds(eb.build()).queue();
+        }).exceptionally(error -> {
+            LOGGER.error("[ArcadiaBridge] /online a echoue", error);
+            event.getHook().editOriginal(Lang.get("discord.error")).queue();
+            return null;
+        });
     }
 
     static void handleStaff(Bridge bridge, SlashCommandInteractionEvent event) {

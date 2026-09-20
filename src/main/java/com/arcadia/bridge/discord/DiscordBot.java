@@ -8,13 +8,17 @@ import java.util.concurrent.TimeUnit;
 import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.mojang.logging.LogUtils;
+import com.arcadia.bridge.i18n.Lang;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.UserSnowflake;
+import net.dv8tion.jda.api.entities.Webhook;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.messages.MessageRequest;
@@ -24,6 +28,7 @@ import org.slf4j.Logger;
 public final class DiscordBot {
 
     private static final Logger LOGGER = LogUtils.getLogger();
+    private static final String WEBHOOK_NAME = "ArcadiaBridge";
     /** Duree maximale d'un timeout Discord (28 jours), avec une petite marge. */
     public static final long MAX_TIMEOUT_MS = TimeUnit.DAYS.toMillis(28) - TimeUnit.MINUTES.toMillis(5);
 
@@ -65,6 +70,7 @@ public final class DiscordBot {
                 }
                 ready = true;
                 LOGGER.info("[ArcadiaBridge] Bot Discord connecte a '{}'.", guild.getName());
+                ensureWebhook();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (Exception e) {
@@ -73,6 +79,37 @@ public final class DiscordBot {
         }, "ArcadiaBridge-Discord-Start");
         starter.setDaemon(true);
         starter.start();
+    }
+
+    /**
+     * Prepare le webhook du salon de chat : on reutilise celui du mod s'il existe, sinon on le cree.
+     * Evite de faire circuler une URL de webhook (qui permet de poster sans authentification) dans une
+     * configuration ou une conversation. Sans la permission "Gerer les webhooks", on garde les messages
+     * classiques du bot.
+     */
+    private void ensureWebhook() {
+        if (!BridgeConfig.CHAT_WEBHOOK_URL.get().isBlank()) {
+            return;
+        }
+        TextChannel channel = channel(BridgeConfig.snowflake(BridgeConfig.DISCORD_CHAT_CHANNEL_ID));
+        Guild guild = guild();
+        if (channel == null || guild == null
+                || !guild.getSelfMember().hasPermission(channel, Permission.MANAGE_WEBHOOKS)) {
+            return;
+        }
+        channel.retrieveWebhooks().queue(hooks -> {
+            for (Webhook hook : hooks) {
+                if (WEBHOOK_NAME.equals(hook.getName()) && hook.getToken() != null) {
+                    ChatWebhook.setRuntimeUrl(hook.getUrl());
+                    LOGGER.info("[ArcadiaBridge] Webhook de chat reutilise dans #{}.", channel.getName());
+                    return;
+                }
+            }
+            channel.createWebhook(WEBHOOK_NAME).queue(hook -> {
+                ChatWebhook.setRuntimeUrl(hook.getUrl());
+                LOGGER.info("[ArcadiaBridge] Webhook de chat cree dans #{}.", channel.getName());
+            }, error -> LOGGER.warn("[ArcadiaBridge] Creation du webhook impossible : {}", error.toString()));
+        }, error -> LOGGER.warn("[ArcadiaBridge] Lecture des webhooks impossible : {}", error.toString()));
     }
 
     public void shutdown() {
@@ -191,6 +228,22 @@ public final class DiscordBot {
         var action = give ? guild.addRoleToMember(UserSnowflake.fromId(userId), role)
                 : guild.removeRoleFromMember(UserSnowflake.fromId(userId), role);
         action.queue(null, this::logFailure);
+    }
+
+    private volatile int presencePlayers = -1;
+
+    /** Statut du bot : "X joueurs en ligne". N'appelle Discord que si le nombre a change. */
+    public void updatePresence(int players) {
+        JDA current = jda;
+        if (!isReady() || current == null || players == presencePlayers) {
+            return;
+        }
+        presencePlayers = players;
+        try {
+            current.getPresence().setActivity(Activity.playing(Lang.get("discord.presence", "players", players)));
+        } catch (RuntimeException e) {
+            logFailure(e);
+        }
     }
 
     public void logFailure(Throwable error) {

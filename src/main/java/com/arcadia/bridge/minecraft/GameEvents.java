@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.compat.LuckPermsHook;
 import com.arcadia.bridge.config.BridgeConfig;
+import com.arcadia.bridge.discord.ChatWebhook;
 import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.permission.Permissions;
 import com.arcadia.bridge.sanction.SanctionService;
@@ -117,13 +118,24 @@ public final class GameEvents {
             return;
         }
         ServerPlayer player = event.getPlayer();
-        String prefix = BridgeConfig.CHAT_LUCKPERMS_PREFIX.get() ? Text.forDiscord(LuckPermsHook.prefix(player.getUUID())) : "";
+        String rawPrefix = BridgeConfig.CHAT_LUCKPERMS_PREFIX.get() ? LuckPermsHook.prefix(player.getUUID()) : "";
+        String prefix = Text.forDiscord(rawPrefix);
+        String name = Text.forDiscord(player.getGameProfile().getName());
+        String message = Text.forDiscord(event.getRawText());
+
+        if (ChatWebhook.isConfigured()) {
+            // Avec un webhook, le pseudo et la tete du joueur portent l'information : pas de mise en forme.
+            String display = (Text.stripFormatting(rawPrefix).trim() + " " + player.getGameProfile().getName()).trim();
+            if (ChatWebhook.send(player.getUUID(), display, message)) {
+                return;
+            }
+        }
         String serverName = BridgeConfig.SERVER_NAME.get();
         String line = Text.fill(BridgeConfig.CHAT_DISCORD_FORMAT.get(),
                 "prefix", prefix.isBlank() ? "" : prefix.trim() + " ",
-                "name", Text.forDiscord(player.getGameProfile().getName()),
+                "name", name,
                 "server", serverName.isBlank() ? "" : Text.forDiscord(serverName),
-                "message", Text.forDiscord(event.getRawText()));
+                "message", message);
         bridge.discord().sendChat(line);
     }
 
@@ -174,5 +186,6 @@ public final class GameEvents {
         }
         tickCounter = 0;
         bridge.verification().tick();
+        bridge.updateOnlineSnapshot();
     }
 }

@@ -104,5 +104,11 @@
   "log.field.reason": "Raison",
   "log.field.by": "Par",
   "log.field.server": "Serveur",
-  "log.field.duration": "Durée"
+  "log.field.duration": "Durée",
+  "discord.presence": "{players} joueurs en ligne",
+  "discord.cmd.online": "Voir qui est connecte sur les serveurs",
+  "discord.online.title": "Joueurs connectes : {total}",
+  "discord.online.none": "Aucun serveur en ligne pour le moment.",
+  "discord.online.empty": "personne",
+  "discord.online.offline": "Serveurs hors ligne"
 }

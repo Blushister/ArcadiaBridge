@@ -44,11 +44,14 @@ public final class BridgeConfig {
     public static final ModConfigSpec.ConfigValue<String> CHAT_MINECRAFT_FORMAT;
     public static final ModConfigSpec.IntValue CHAT_MAX_LENGTH;
     public static final ModConfigSpec.BooleanValue CHAT_LUCKPERMS_PREFIX;
+    public static final ModConfigSpec.ConfigValue<String> CHAT_WEBHOOK_URL;
+    public static final ModConfigSpec.ConfigValue<String> CHAT_AVATAR_URL;
 
     // status
     public static final ModConfigSpec.BooleanValue STATUS_SERVER;
     public static final ModConfigSpec.BooleanValue STATUS_JOIN_LEAVE;
     public static final ModConfigSpec.BooleanValue STATUS_DEATHS;
+    public static final ModConfigSpec.BooleanValue STATUS_BOT_PRESENCE;
 
     // verification
     public static final ModConfigSpec.BooleanValue VERIFICATION_ENABLED;
@@ -119,12 +122,21 @@ public final class BridgeConfig {
                 .defineInRange("maxLength", 256, 16, 2000);
         CHAT_LUCKPERMS_PREFIX = b.comment("Afficher le prefixe LuckPerms du joueur sur Discord.")
                 .define("luckPermsPrefix", true);
+        CHAT_WEBHOOK_URL = b.comment(
+                        "URL de webhook du salon de chat (Parametres du salon > Integrations > Webhooks).",
+                        "Si elle est remplie, les messages des joueurs sont postes avec leur pseudo et leur tete,",
+                        "au lieu d'un message unique du bot. Vide = comportement classique.")
+                .define("webhookUrl", "");
+        CHAT_AVATAR_URL = b.comment("Image utilisee comme avatar. Variables : {uuid} {name}")
+                .define("avatarUrl", "https://mc-heads.net/avatar/{uuid}/64");
         b.pop();
 
         b.push("status");
         STATUS_SERVER = b.comment("Annonce du demarrage / arret du serveur.").define("serverStartStop", true);
         STATUS_JOIN_LEAVE = b.define("joinLeave", true);
         STATUS_DEATHS = b.define("deaths", true);
+        STATUS_BOT_PRESENCE = b.comment("Afficher le nombre de joueurs connectes dans le statut du bot (serveur primaire).")
+                .define("botPresence", true);
         b.pop();
 
         b.push("verification");

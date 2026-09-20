@@ -14,6 +14,7 @@ import com.arcadia.bridge.data.BridgeCache;
 import com.arcadia.bridge.data.Models.Link;
 import com.arcadia.bridge.data.Models.PlayerRef;
 import com.arcadia.bridge.data.Models.Sanction;
+import com.arcadia.bridge.data.Models.ServerStatus;
 import com.arcadia.bridge.data.Repository;
 import com.arcadia.bridge.db.Database;
 import com.arcadia.bridge.discord.DiscordBot;
@@ -43,6 +44,8 @@ public final class Bridge {
     private final SanctionService sanctions;
     private final ScheduledExecutorService scheduler;
 
+    /** Photo des joueurs connectes, prise sur le thread principal et lue par le thread de synchro. */
+    private volatile List<String> onlineNames = List.of();
     private volatile Database database;
     private volatile Repository repository;
     private volatile boolean stopping;
@@ -134,12 +137,33 @@ public final class Bridge {
         cache.replaceSanctions(active, start);
         runOnMain(this::enforceOnlinePlayers);
 
+        // Chaque serveur signale son etat : c'est ce qui alimente /online et le statut du bot.
+        repository.heartbeat(Bridge.serverId(), BridgeConfig.SERVER_NAME.get(), onlineNames,
+                server.getMaxPlayers()).join();
         if (isPrimary() && discord.isReady()) {
             long now = System.currentTimeMillis();
+            if (BridgeConfig.STATUS_BOT_PRESENCE.get()) {
+                int total = repository.loadServers().join().stream()
+                        .filter(st -> st.isOnline(now))
+                        .mapToInt(ServerStatus::players).sum();
+                discord.updatePresence(total);
+            }
             sanctions.handleExpired(repository.expireDue(now).join());
             sanctions.refreshDiscordTimeouts(now);
             repository.purgeExpiredCodes(now);
         }
+    }
+
+    /** Appele chaque seconde sur le thread principal. */
+    public void updateOnlineSnapshot() {
+        onlineNames = server.getPlayerList().getPlayers().stream()
+                .map(p -> p.getGameProfile().getName())
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+    }
+
+    public List<String> onlineNames() {
+        return onlineNames;
     }
 
     /** Expulse les joueurs connectes qui viennent d'etre bannis (depuis un autre serveur ou Discord). */
