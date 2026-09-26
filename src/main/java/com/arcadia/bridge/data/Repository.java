@@ -190,14 +190,21 @@ public final class Repository {
     // ---------------------------------------------------------------- chat inter-serveurs
 
     public CompletableFuture<Void> publishChat(String serverId, String playerName, String prefix, String message) {
+        return publishChat(serverId, playerName, prefix, message, null);
+    }
+
+    /** {@code formatted} : la ligne mise en forme sur le serveur d'origine (JSON de composant), ou null. */
+    public CompletableFuture<Void> publishChat(String serverId, String playerName, String prefix, String message,
+                                               String formatted) {
         return db.async(c -> {
             try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + chat
-                    + " (server_id, player_name, prefix, message, created_at) VALUES (?, ?, ?, ?, ?)")) {
+                    + " (server_id, player_name, prefix, message, formatted, created_at) VALUES (?, ?, ?, ?, ?, ?)")) {
                 ps.setString(1, serverId);
                 ps.setString(2, playerName);
                 ps.setString(3, prefix);
                 ps.setString(4, message);
-                ps.setLong(5, System.currentTimeMillis());
+                ps.setString(5, formatted);
+                ps.setLong(6, System.currentTimeMillis());
                 ps.executeUpdate();
             }
             return null;
@@ -208,14 +215,14 @@ public final class Repository {
     public CompletableFuture<List<ChatLine>> fetchChat(long afterId, String excludeServerId) {
         return db.async(c -> {
             List<ChatLine> lines = new ArrayList<>();
-            try (PreparedStatement ps = c.prepareStatement("SELECT id, server_id, player_name, prefix, message FROM "
+            try (PreparedStatement ps = c.prepareStatement("SELECT id, server_id, player_name, prefix, message, formatted FROM "
                     + chat + " WHERE id > ? AND server_id <> ? ORDER BY id LIMIT 50")) {
                 ps.setLong(1, afterId);
                 ps.setString(2, excludeServerId);
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
                         lines.add(new ChatLine(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4),
-                                rs.getString(5)));
+                                rs.getString(5), rs.getString(6)));
                     }
                 }
             }

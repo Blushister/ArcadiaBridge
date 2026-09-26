@@ -2,6 +2,7 @@ package com.arcadia.bridge.chat;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -12,7 +13,10 @@ import com.arcadia.bridge.data.Models.ChatLine;
 import com.arcadia.bridge.data.Repository;
 import com.arcadia.bridge.util.Text;
 import com.mojang.logging.LogUtils;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 
@@ -28,6 +32,8 @@ import org.slf4j.Logger;
 public final class CrossServerChat {
 
     private static final Logger LOGGER = LogUtils.getLogger();
+    /** Au-dela, la ligne mise en forme est ignoree et le format par defaut s'applique. */
+    private static final int MAX_FORMATTED_JSON = 8192;
 
     private final Bridge bridge;
     /** Joueurs ayant choisi le mode local (les autres suivent le reglage par defaut). */
@@ -85,14 +91,19 @@ public final class CrossServerChat {
 
     // ---------------------------------------------------------------- envoi et reception
 
-    /** Publie un message local vers les autres serveurs. */
-    public void publish(ServerPlayer player, String prefix, String message) {
+    /**
+     * Publie un message local vers les autres serveurs.
+     *
+     * @param formatted la ligne telle qu'affichee sur ce serveur (mise en forme LPC), si elle existe
+     */
+    public void publish(ServerPlayer player, String prefix, String message, Optional<Component> formatted) {
         Repository repo = bridge.repository();
         if (repo == null || !isEnabled() || !isGlobal(player.getUUID())) {
             return;
         }
+        String json = formatted.map(line -> toJson(line, player.registryAccess())).orElse(null);
         repo.publishChat(Bridge.serverId(), player.getGameProfile().getName(), Text.stripFormatting(prefix),
-                        Text.stripFormatting(message))
+                        Text.stripFormatting(message), json)
                 .exceptionally(error -> {
                     LOGGER.warn("[ArcadiaBridge] Publication du chat inter-serveurs impossible : {}", error.toString());
                     return null;
@@ -111,8 +122,9 @@ public final class CrossServerChat {
                 return;
             }
             lastId = lines.get(lines.size() - 1).id();
-            List<Component> components = lines.stream().map(CrossServerChat::format).toList();
             bridge.runOnMain(() -> {
+                HolderLookup.Provider registries = bridge.server().registryAccess();
+                List<Component> components = lines.stream().map(line -> format(line, registries)).toList();
                 for (ServerPlayer player : bridge.server().getPlayerList().getPlayers()) {
                     if (isGlobal(player.getUUID())) {
                         components.forEach(player::sendSystemMessage);
@@ -122,7 +134,17 @@ public final class CrossServerChat {
         });
     }
 
-    private static Component format(ChatLine line) {
+    private static Component format(ChatLine line, HolderLookup.Provider registries) {
+        Component formatted = fromJson(line.formatted(), registries);
+        if (formatted != null) {
+            String tag = Text.fill(Text.colorize(BridgeConfig.CHAT_CROSS_SERVER_TAG.get()),
+                    "server", Text.stripFormatting(line.serverId()));
+            return Component.literal(tag).append(formatted);
+        }
+        return defaultFormat(line);
+    }
+
+    private static Component defaultFormat(ChatLine line) {
         String prefix = line.prefix() == null ? "" : line.prefix().trim();
         String text = Text.fill(Text.colorize(BridgeConfig.CHAT_CROSS_SERVER_FORMAT.get()),
                 "server", Text.stripFormatting(line.serverId()),
@@ -130,5 +152,42 @@ public final class CrossServerChat {
                 "name", Text.stripFormatting(line.playerName()),
                 "message", Text.forMinecraft(line.message(), BridgeConfig.CHAT_MAX_LENGTH.get()));
         return Component.literal(text);
+    }
+
+    private static String toJson(Component line, HolderLookup.Provider registries) {
+        try {
+            String json = Component.Serializer.toJson(line, registries);
+            return json.length() <= MAX_FORMATTED_JSON ? json : null;
+        } catch (RuntimeException e) {
+            LOGGER.debug("[ArcadiaBridge] Ligne de chat non serialisable : {}", e.toString());
+            return null;
+        }
+    }
+
+    /**
+     * Relit la ligne mise en forme par l'autre serveur. Seuls le texte et son apparence sont gardes :
+     * aucun clic, survol ou insertion ne passe d'un serveur a l'autre.
+     */
+    private static Component fromJson(String json, HolderLookup.Provider registries) {
+        if (json == null || json.isEmpty() || json.length() > MAX_FORMATTED_JSON) {
+            return null;
+        }
+        try {
+            Component parsed = Component.Serializer.fromJson(json, registries);
+            if (parsed == null) {
+                return null;
+            }
+            MutableComponent safe = Component.empty();
+            parsed.visit((style, text) -> {
+                safe.append(Component.literal(text).withStyle(style.withClickEvent(null).withHoverEvent(null)
+                        .withInsertion(null)));
+                return Optional.empty();
+            }, Style.EMPTY);
+            int max = BridgeConfig.CHAT_MAX_LENGTH.get() + 256;
+            return safe.getString().length() <= max ? safe : null;
+        } catch (RuntimeException e) {
+            LOGGER.debug("[ArcadiaBridge] Ligne de chat illisible, format par defaut : {}", e.toString());
+            return null;
+        }
     }
 }

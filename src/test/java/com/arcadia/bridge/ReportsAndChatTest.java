@@ -112,6 +112,20 @@ class ReportsAndChatTest {
     }
 
     @Test
+    @DisplayName("La ligne mise en forme (LPC) voyage avec le message")
+    void chatCarriesFormattedLine() {
+        long before = repo.lastChatId().join();
+        String json = "{\"text\":\"[Admin] \",\"color\":\"red\",\"extra\":[\"Dev: salut\"]}";
+        repo.publishChat("test3", "Dev", "[Admin]", "salut", json).join();
+        repo.publishChat("test3", "Autre", "", "sans mise en forme").join();
+
+        List<ChatLine> lines = repo.fetchChat(before, "test1").join();
+        assertEquals(2, lines.size());
+        assertEquals(json, lines.get(0).formatted());
+        assertEquals(null, lines.get(1).formatted());
+    }
+
+    @Test
     @DisplayName("Le chat relaye est purge apres coup")
     void chatIsPurged() {
         repo.publishChat("test2", "Autre", "", "vieux message").join();

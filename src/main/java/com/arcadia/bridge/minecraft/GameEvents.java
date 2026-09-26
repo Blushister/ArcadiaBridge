@@ -117,7 +117,8 @@ public final class GameEvents {
         if (!BridgeConfig.CHAT_TO_DISCORD.get() || !bridge.discord().isReady()) {
             String prefixOnly = BridgeConfig.CHAT_LUCKPERMS_PREFIX.get()
                     ? LuckPermsHook.prefix(event.getPlayer().getUUID()) : "";
-            bridge.crossChat().publish(event.getPlayer(), prefixOnly, event.getRawText());
+            bridge.crossChat().publish(event.getPlayer(), prefixOnly, event.getRawText(),
+                    ChatFormatterCompat.format(event.getPlayer(), event.getMessage()));
             return;
         }
         ServerPlayer player = event.getPlayer();
@@ -127,7 +128,8 @@ public final class GameEvents {
         String message = Text.forDiscord(event.getRawText());
 
         // Les autres serveurs recoivent le message ; leur propre salon Discord s'en charge de leur cote.
-        bridge.crossChat().publish(player, rawPrefix, event.getRawText());
+        bridge.crossChat().publish(player, rawPrefix, event.getRawText(),
+                ChatFormatterCompat.format(player, event.getMessage()));
 
         if (ChatWebhook.isConfigured()) {
             // Avec un webhook, le pseudo et la tete du joueur portent l'information : pas de mise en forme.

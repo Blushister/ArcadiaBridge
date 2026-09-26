@@ -72,8 +72,12 @@ public final class Models {
                          Long messageId) {
     }
 
-    /** Message de chat relaye d'un serveur a l'autre via la base partagee. */
-    public record ChatLine(long id, String serverId, String playerName, String prefix, String message) {
+    /**
+     * Message de chat relaye d'un serveur a l'autre via la base partagee. {@code formatted} est la ligne
+     * telle que le serveur d'origine l'a affichee (JSON de composant), ou null.
+     */
+    public record ChatLine(long id, String serverId, String playerName, String prefix, String message,
+                           String formatted) {
     }
 
     public enum RedeemStatus {

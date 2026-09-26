@@ -51,6 +51,7 @@ public final class BridgeConfig {
     public static final ModConfigSpec.ConfigValue<String> CHAT_AVATAR_URL;
     public static final ModConfigSpec.BooleanValue CHAT_CROSS_SERVER;
     public static final ModConfigSpec.ConfigValue<String> CHAT_CROSS_SERVER_FORMAT;
+    public static final ModConfigSpec.ConfigValue<String> CHAT_CROSS_SERVER_TAG;
     public static final ModConfigSpec.BooleanValue CHAT_CROSS_SERVER_DEFAULT;
     public static final ModConfigSpec.IntValue CHAT_CROSS_SERVER_POLL;
 
@@ -173,6 +174,10 @@ public final class BridgeConfig {
                 .define("crossServer", false);
         CHAT_CROSS_SERVER_FORMAT = b.comment("Format des messages venus d'un autre serveur. Variables : {server} {prefix} {name} {message}")
                 .define("crossServerFormat", "&8[{server}] &f{prefix}{name}&7 : &f{message}");
+        CHAT_CROSS_SERVER_TAG = b.comment(
+                        "Quand le serveur d'origine met le chat en forme (LPC), sa ligne est reprise telle quelle,",
+                        "couleurs comprises, precedee de ce repere. Variable : {server}")
+                .define("crossServerTag", "&8[{server}] ");
         CHAT_CROSS_SERVER_DEFAULT = b.comment("Les joueurs voient le chat des autres serveurs par defaut (modifiable par /chat).")
                 .define("crossServerByDefault", true);
         CHAT_CROSS_SERVER_POLL = b.comment("Frequence de releve du chat des autres serveurs, en secondes.")

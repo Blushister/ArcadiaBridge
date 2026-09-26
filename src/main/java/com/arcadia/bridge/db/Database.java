@@ -237,6 +237,7 @@ public final class Database implements AutoCloseable {
             addColumnIfMissing(c, t("players"), "ip_hash", "CHAR(64) NULL");
             addColumnIfMissing(c, t("players"), "ip_seen_at", "BIGINT NULL");
             addColumnIfMissing(c, t("players"), "chat_global", "TINYINT(1) NULL");
+            addColumnIfMissing(c, t("chat"), "formatted", "TEXT NULL");
             try (Statement s = c.createStatement()) {
                 s.execute("CREATE INDEX idx_ip ON " + t("players") + " (ip_hash)");
             } catch (SQLException ignored) {
