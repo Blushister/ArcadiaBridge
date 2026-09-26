@@ -35,7 +35,7 @@ public final class BridgeConfig {
     public static final ModConfigSpec.ConfigValue<String> DISCORD_CHAT_CHANNEL_ID;
     public static final ModConfigSpec.ConfigValue<String> DISCORD_VERIFICATION_CHANNEL_ID;
     public static final ModConfigSpec.ConfigValue<String> DISCORD_LOGS_CHANNEL_ID;
-    public static final ModConfigSpec.BooleanValue DISCORD_PRIMARY;
+    public static final ModConfigSpec.ConfigValue<String> DISCORD_PRIMARY_MODE;
     public static final ModConfigSpec.ConfigValue<List<? extends String>> DISCORD_STAFF_ROLE_IDS;
     public static final ModConfigSpec.ConfigValue<String> DISCORD_TEXT_PREFIX;
     public static final ModConfigSpec.BooleanValue DISCORD_STAFF_ONLY_COMMANDS;
@@ -132,10 +132,14 @@ public final class BridgeConfig {
         DISCORD_VERIFICATION_CHANNEL_ID = b.comment("ID du salon ou les joueurs font !verify (optionnel, /verify marche partout).")
                 .define("verificationChannelId", "");
         DISCORD_LOGS_CHANNEL_ID = b.comment("ID du salon de logs staff (sanctions, liaisons).").define("logsChannelId", "");
-        DISCORD_PRIMARY = b.comment(
-                        "Un seul serveur Minecraft doit etre 'primary' si plusieurs utilisent le meme bot :",
-                        "c'est lui qui gere les commandes slash, /verify, les bans Discord et les expirations.")
-                .define("primary", true);
+        DISCORD_PRIMARY_MODE = b.comment(
+                        "Le serveur primaire gere les commandes slash, /verify, les bans faits sur Discord et les",
+                        "expirations. Un seul serveur l'est a la fois.",
+                        "  auto   : election automatique entre les serveurs (verrou dans la base) ; si le primaire",
+                        "           s'arrete ou plante, un autre prend le relais en moins de syncIntervalSeconds.",
+                        "  always : toujours primaire (installation a un seul serveur).",
+                        "  never  : jamais primaire (serveur de test, par exemple).")
+                .define("primaryMode", "auto", o -> "auto".equals(o) || "always".equals(o) || "never".equals(o));
         DISCORD_STAFF_ROLE_IDS = b.comment("IDs des roles Discord autorises a utiliser /mc (en plus de la permission Bannir).")
                 .defineListAllowEmpty("staffRoleIds", List.of(), () -> "", o -> o instanceof String);
         DISCORD_TEXT_PREFIX = b.comment("Prefixe des commandes texte (ex : !verify).").define("textCommandPrefix", "!");

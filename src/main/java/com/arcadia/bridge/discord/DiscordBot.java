@@ -289,6 +289,16 @@ public final class DiscordBot {
 
     private volatile int presencePlayers = -1;
 
+    /** Ce serveur vient de devenir primaire : il (re)declare les commandes du mod. */
+    public void onBecamePrimary() {
+        JDA current = jda;
+        Guild guild = guild();
+        if (isReady() && current != null && guild != null) {
+            SlashCommands.register(current, guild);
+        }
+        // Sinon, l'enregistrement se fera a la connexion du bot (voir start()).
+    }
+
     /** Verifie que les commandes du mod existent toujours (serveur primaire). */
     public void ensureCommands() {
         JDA current = jda;

@@ -18,6 +18,7 @@ import com.arcadia.bridge.data.Models.Sanction;
 import com.arcadia.bridge.data.Models.ServerStatus;
 import com.arcadia.bridge.data.Repository;
 import com.arcadia.bridge.db.Database;
+import com.arcadia.bridge.db.PrimaryElection;
 import com.arcadia.bridge.discord.DiscordBot;
 import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.report.ReportService;
@@ -53,6 +54,8 @@ public final class Bridge {
     /** Photo des joueurs connectes, prise sur le thread principal et lue par le thread de synchro. */
     private volatile List<String> onlineNames = List.of();
     private volatile Database database;
+    private volatile PrimaryElection election;
+    private volatile boolean primary;
     private volatile Repository repository;
     private volatile boolean stopping;
     /** Compteur de cycles de synchronisation (thread de synchro uniquement). */
@@ -109,6 +112,11 @@ public final class Bridge {
         }
         bridge.stopping = true;
         bridge.scheduler.shutdownNow();
+        // Rendre le verrou tout de suite : un autre serveur reprend la main des son prochain cycle.
+        PrimaryElection current = bridge.election;
+        if (current != null) {
+            current.close();
+        }
         bridge.discord.shutdown();
         Database db = bridge.database;
         if (db != null) {
@@ -123,6 +131,8 @@ public final class Bridge {
                     BridgeConfig.DB_USER.get(), BridgeConfig.DB_PASSWORD.get(), BridgeConfig.DB_PARAMETERS.get(),
                     BridgeConfig.DB_TABLE_PREFIX.get(), BridgeConfig.DB_POOL_SIZE.get());
             repository = new Repository(database);
+            election = new PrimaryElection(database,
+                    "arcadiabridge:" + database.databaseName() + ":" + database.tablePrefix() + "primary");
             LOGGER.info("[ArcadiaBridge] Connecte a MySQL.");
         } catch (Exception e) {
             LOGGER.error("[ArcadiaBridge] Base de donnees indisponible : {}. Verification et sanctions suspendues,"
@@ -164,6 +174,7 @@ public final class Bridge {
      * sur Discord), puis applique les consequences en jeu. Le serveur primaire gere aussi les expirations.
      */
     private void syncNow() {
+        updatePrimary();
         long start = System.currentTimeMillis();
         Map<UUID, Link> links = repository.loadAllLinks().join();
         List<Sanction> active = repository.loadActive(start).join();
@@ -192,6 +203,23 @@ public final class Bridge {
             // Le chat inter-serveurs n'est qu'un relais : on ne garde pas d'historique en base.
             repository.purgeChat(now - TimeUnit.MINUTES.toMillis(5));
             ipGuard.purge();
+        }
+    }
+
+    /** Determine si ce serveur est primaire, selon le mode configure. */
+    private void updatePrimary() {
+        boolean now = switch (BridgeConfig.DISCORD_PRIMARY_MODE.get()) {
+            case "always" -> true;
+            case "never" -> false;
+            default -> election != null && election.tick();
+        };
+        if (now != primary) {
+            primary = now;
+            LOGGER.info(now ? "[ArcadiaBridge] Ce serveur devient le serveur primaire."
+                    : "[ArcadiaBridge] Ce serveur n'est plus le serveur primaire.");
+            if (now) {
+                discord.onBecamePrimary();
+            }
         }
     }
 
@@ -261,8 +289,10 @@ public final class Bridge {
         return stopping;
     }
 
+    /** Ce serveur est-il actuellement le serveur primaire ? (voir PrimaryElection) */
     public static boolean isPrimary() {
-        return BridgeConfig.DISCORD_PRIMARY.get();
+        Bridge bridge = instance;
+        return bridge != null && bridge.primary;
     }
 
     public static String serverId() {

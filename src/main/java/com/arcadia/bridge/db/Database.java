@@ -1,10 +1,12 @@
 package com.arcadia.bridge.db;
 
 import java.sql.Connection;
+import java.sql.Driver;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
@@ -33,13 +35,22 @@ public final class Database implements AutoCloseable {
         T run(Connection connection) throws SQLException;
     }
 
+    private static final String DRIVER = "com.mysql.cj.jdbc.Driver";
+
     private final HikariDataSource dataSource;
     private final ExecutorService executor;
     private final String prefix;
+    private final String jdbcUrl;
+    private final String user;
+    private final String password;
 
-    private Database(HikariDataSource dataSource, int threads, String prefix) {
+    private Database(HikariDataSource dataSource, int threads, String prefix, String jdbcUrl, String user,
+                     String password) {
         this.dataSource = dataSource;
         this.prefix = prefix;
+        this.jdbcUrl = jdbcUrl;
+        this.user = user;
+        this.password = password;
         AtomicInteger counter = new AtomicInteger();
         ThreadFactory factory = r -> {
             Thread t = new Thread(r, "ArcadiaBridge-DB-" + counter.incrementAndGet());
@@ -56,8 +67,9 @@ public final class Database implements AutoCloseable {
         }
         HikariConfig config = new HikariConfig();
         String query = parameters == null || parameters.isBlank() ? "" : "?" + parameters;
-        config.setJdbcUrl("jdbc:mysql://" + host + ":" + port + "/" + database + query);
-        config.setDriverClassName("com.mysql.cj.jdbc.Driver");
+        String jdbcUrl = "jdbc:mysql://" + host + ":" + port + "/" + database + query;
+        config.setJdbcUrl(jdbcUrl);
+        config.setDriverClassName(DRIVER);
         config.setUsername(user);
         config.setPassword(password);
         config.setMaximumPoolSize(poolSize);
@@ -73,7 +85,7 @@ public final class Database implements AutoCloseable {
             throw new SQLException("Connexion MySQL impossible (" + host + ":" + port + "/" + database + ") : "
                     + e.getMessage(), e);
         }
-        Database db = new Database(ds, poolSize, tablePrefix);
+        Database db = new Database(ds, poolSize, tablePrefix, jdbcUrl, user, password);
         db.migrate();
         return db;
     }
@@ -108,6 +120,37 @@ public final class Database implements AutoCloseable {
                 c.setAutoCommit(true);
             }
         });
+    }
+
+    /**
+     * Connexion dediee, hors du pool : sa fermeture coupe reellement la session MariaDB. Indispensable
+     * pour un verrou GET_LOCK, qui vit aussi longtemps que la session : une connexion du pool, une fois
+     * "fermee", retournerait au pool avec le verrou toujours pose.
+     */
+    public Connection rawConnection() throws SQLException {
+        try {
+            Driver driver = (Driver) Class.forName(DRIVER).getDeclaredConstructor().newInstance();
+            Properties properties = new Properties();
+            properties.setProperty("user", user);
+            properties.setProperty("password", password);
+            Connection connection = driver.connect(jdbcUrl, properties);
+            if (connection == null) {
+                throw new SQLException("URL JDBC non reconnue par le pilote MySQL");
+            }
+            return connection;
+        } catch (ReflectiveOperationException e) {
+            throw new SQLException("Pilote MySQL introuvable", e);
+        }
+    }
+
+    public String databaseName() {
+        String path = jdbcUrl.substring(jdbcUrl.lastIndexOf('/') + 1);
+        int query = path.indexOf('?');
+        return query < 0 ? path : path.substring(0, query);
+    }
+
+    public String tablePrefix() {
+        return prefix;
     }
 
     /** Execution bloquante : reservee au demarrage du serveur. */

@@ -52,7 +52,7 @@ Sections principales de `config/arcadiabridge.toml` :
 |---|---|
 | `general` | `serverId` (unique par serveur), `serverName`, `language`, `presentation` |
 | `database` | hôte, base, utilisateur, mot de passe de la base partagée |
-| `discord` | `token`, `guildId`, `chatChannelId`, `logsChannelId`, `primary` |
+| `discord` | `token`, `guildId`, `chatChannelId`, `logsChannelId`, `primaryMode` |
 | `verification` | `enabled`, `mode` (`grace` ou `kick`), durées |
 | `sanctions` | synchronisation Discord, intervalle de synchro, nombre max d'avertissements |
 | `chat` | relais, format, webhook, chat inter-serveurs |
@@ -63,9 +63,12 @@ Sections principales de `config/arcadiabridge.toml` :
 ligne. En `riche`, les messages des joueurs passent par un webhook (pseudo et tête de skin) et les
 annonces deviennent des encarts colorés. Le bot ne crée de webhook que dans ce second cas.
 
-**`primary`** : si plusieurs serveurs utilisent le même bot, un seul doit avoir `primary = true`. C'est lui
-qui enregistre les commandes slash, traite `/verify`, réagit aux bans faits sur Discord et applique les
-expirations. Les autres relaient le chat et appliquent les sanctions lues en base.
+**Serveur primaire.** Un seul serveur à la fois enregistre les commandes slash, traite `/verify`, réagit
+aux bans faits sur Discord et applique les expirations côté Discord. Il est **élu automatiquement**
+(`[discord] primaryMode = "auto"`, par défaut) grâce à un verrou MariaDB : si le primaire s'arrête, il
+rend la main et un autre la reprend au cycle suivant ; s'il plante, MariaDB libère le verrou à la coupure
+de la connexion. Reprise mesurée : 5 s après un arrêt, 12 s après un plantage. `always` force le rôle
+(installation à un seul serveur), `never` l'interdit (serveur de test).
 
 Les textes affichés sont modifiables dans `config/arcadiabridge/lang/<langue>.json`, rechargeables avec
 `/arcadia_bridge reloadlang`.
