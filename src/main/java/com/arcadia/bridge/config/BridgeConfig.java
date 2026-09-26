@@ -27,6 +27,7 @@ public final class BridgeConfig {
     public static final ModConfigSpec.ConfigValue<String> DB_PARAMETERS;
     public static final ModConfigSpec.ConfigValue<String> DB_TABLE_PREFIX;
     public static final ModConfigSpec.IntValue DB_POOL_SIZE;
+    public static final ModConfigSpec.BooleanValue DB_IMPORT_LEGACY;
 
     // discord
     public static final ModConfigSpec.ConfigValue<String> DISCORD_TOKEN;
@@ -37,6 +38,7 @@ public final class BridgeConfig {
     public static final ModConfigSpec.BooleanValue DISCORD_PRIMARY;
     public static final ModConfigSpec.ConfigValue<List<? extends String>> DISCORD_STAFF_ROLE_IDS;
     public static final ModConfigSpec.ConfigValue<String> DISCORD_TEXT_PREFIX;
+    public static final ModConfigSpec.BooleanValue DISCORD_STAFF_ONLY_COMMANDS;
 
     // chat
     public static final ModConfigSpec.BooleanValue CHAT_TO_DISCORD;
@@ -116,6 +118,10 @@ public final class BridgeConfig {
         DB_TABLE_PREFIX = b.comment("Prefixe des tables creees par le mod (base partagee entre tous les serveurs).")
                 .define("tablePrefix", "ab_");
         DB_POOL_SIZE = b.defineInRange("poolSize", 4, 2, 32);
+        DB_IMPORT_LEGACY = b.comment(
+                        "Au demarrage, recopier le registre des joueurs de l'ancien mod (table 'players' de la",
+                        "meme base) : pseudos, UUID et derniere activite. L'ancienne table n'est jamais modifiee.")
+                .define("importLegacyPlayers", true);
         b.pop();
 
         b.push("discord");
@@ -133,6 +139,10 @@ public final class BridgeConfig {
         DISCORD_STAFF_ROLE_IDS = b.comment("IDs des roles Discord autorises a utiliser /mc (en plus de la permission Bannir).")
                 .defineListAllowEmpty("staffRoleIds", List.of(), () -> "", o -> o instanceof String);
         DISCORD_TEXT_PREFIX = b.comment("Prefixe des commandes texte (ex : !verify).").define("textCommandPrefix", "!");
+        DISCORD_STAFF_ONLY_COMMANDS = b.comment(
+                        "Reserver /verify et /online au staff (permission Bannir). Utile pendant une phase de test",
+                        "sur un serveur Discord deja peuple, pour ne pas montrer les commandes a tout le monde.")
+                .define("staffOnlyCommands", false);
         b.pop();
 
         b.push("chat");
@@ -169,8 +179,10 @@ public final class BridgeConfig {
         STATUS_SERVER = b.comment("Annonce du demarrage / arret du serveur.").define("serverStartStop", true);
         STATUS_JOIN_LEAVE = b.define("joinLeave", true);
         STATUS_DEATHS = b.define("deaths", true);
-        STATUS_BOT_PRESENCE = b.comment("Afficher le nombre de joueurs connectes dans le statut du bot (serveur primaire).")
-                .define("botPresence", true);
+        STATUS_BOT_PRESENCE = b.comment(
+                        "Afficher le nombre de joueurs connectes dans le statut du bot (serveur primaire).",
+                        "A laisser desactive si le bot est partage avec une autre application qui gere deja son statut.")
+                .define("botPresence", false);
         b.pop();
 
         b.push("verification");

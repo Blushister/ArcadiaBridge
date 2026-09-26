@@ -70,7 +70,7 @@ public final class DiscordBot {
                     return;
                 }
                 if (Bridge.isPrimary()) {
-                    SlashCommands.register(guild);
+                    SlashCommands.register(jda, guild);
                 }
                 ready = true;
                 LOGGER.info("[ArcadiaBridge] Bot Discord connecte a '{}'.", guild.getName());
@@ -288,6 +288,14 @@ public final class DiscordBot {
     }
 
     private volatile int presencePlayers = -1;
+
+    /** Verifie que les commandes du mod existent toujours (serveur primaire). */
+    public void ensureCommands() {
+        JDA current = jda;
+        if (isReady() && current != null) {
+            SlashCommands.ensurePresent(current);
+        }
+    }
 
     /** Statut du bot : "X joueurs en ligne". N'appelle Discord que si le nombre a change. */
     public void updatePresence(int players) {

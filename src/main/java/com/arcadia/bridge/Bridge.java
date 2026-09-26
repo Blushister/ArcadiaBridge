@@ -55,6 +55,9 @@ public final class Bridge {
     private volatile Database database;
     private volatile Repository repository;
     private volatile boolean stopping;
+    /** Compteur de cycles de synchronisation (thread de synchro uniquement). */
+    private int syncCycles;
+    private static final int COMMAND_CHECK_EVERY = 20;
 
     private Bridge(MinecraftServer server) {
         this.server = server;
@@ -85,6 +88,7 @@ public final class Bridge {
         Lang.load(bridge.configDir, BridgeConfig.LANGUAGE.get());
         bridge.connectDatabase();
         if (bridge.database != null) {
+            bridge.importLegacyData();
             bridge.syncNow();
         }
         bridge.discord.start();
@@ -126,6 +130,21 @@ public final class Bridge {
         }
     }
 
+    /** Reprise des donnees de l'ancien mod (voir Repository#importLegacyPlayers). */
+    private void importLegacyData() {
+        if (!BridgeConfig.DB_IMPORT_LEGACY.get()) {
+            return;
+        }
+        try {
+            int rows = repository.importLegacyPlayers();
+            if (rows >= 0) {
+                LOGGER.info("[ArcadiaBridge] Registre des joueurs de l'ancien mod importe ({} lignes traitees).", rows);
+            }
+        } catch (Exception e) {
+            LOGGER.error("[ArcadiaBridge] Import des joueurs de l'ancien mod impossible : {}", e.getMessage());
+        }
+    }
+
     private void safeSync() {
         try {
             if (database == null) {
@@ -162,6 +181,10 @@ public final class Bridge {
                         .filter(st -> st.isOnline(now))
                         .mapToInt(ServerStatus::players).sum();
                 discord.updatePresence(total);
+            }
+            // Toutes les ~5 minutes : nos commandes Discord existent-elles toujours ?
+            if (++syncCycles % COMMAND_CHECK_EVERY == 0) {
+                discord.ensureCommands();
             }
             sanctions.handleExpired(repository.expireDue(now).join());
             sanctions.refreshDiscordTimeouts(now);

@@ -319,6 +319,60 @@ public final class Repository {
         });
     }
 
+    // ---------------------------------------------------------------- import de l'ancien mod
+
+    /** Nom de la table de l'ancien mod (arcadiabridge 0.5.x), sans prefixe. */
+    private static final String LEGACY_PLAYERS = "players";
+
+    /**
+     * Recopie le registre des joueurs de l'ancien mod dans ab_players : UUID, dernier pseudo, dernier
+     * serveur et derniere activite. L'ancienne table n'est que lue, jamais modifiee.
+     *
+     * <p>Rejouable sans risque : un joueur deja connu n'est mis a jour que si l'ancienne donnee est plus
+     * recente. Sans ancienne table (ou si notre prefixe est vide, ce qui ferait de "players" notre propre
+     * table), il ne se passe rien.
+     *
+     * @return nombre de lignes inserees ou mises a jour, ou -1 si aucune ancienne table n'a ete trouvee
+     */
+    public int importLegacyPlayers() throws SQLException {
+        if (players.equals(LEGACY_PLAYERS)) {
+            return -1;
+        }
+        return db.sync(c -> {
+            if (!legacyTableIsCompatible(c)) {
+                return -1;
+            }
+            // La colonne last_seen est affectee en dernier : les conditions precedentes lisent donc
+            // encore l'ancienne valeur.
+            String sql = "INSERT INTO " + players + " (uuid, name, last_server, last_seen)"
+                    + " SELECT p.uuid, p.minecraft_name, p.server_id, UNIX_TIMESTAMP(p.updated_at) * 1000"
+                    + " FROM " + LEGACY_PLAYERS + " p"
+                    + " JOIN (SELECT uuid, MAX(updated_at) AS latest FROM " + LEGACY_PLAYERS + " GROUP BY uuid) last"
+                    + "   ON last.uuid = p.uuid AND last.latest = p.updated_at"
+                    + " WHERE p.uuid IS NOT NULL AND CHAR_LENGTH(p.uuid) = 36"
+                    + "   AND p.minecraft_name IS NOT NULL AND CHAR_LENGTH(p.minecraft_name) BETWEEN 1 AND 16"
+                    + "   AND p.minecraft_name NOT LIKE 'Unverified\\_%'"
+                    + " ON DUPLICATE KEY UPDATE"
+                    + "   name = IF(VALUES(last_seen) > last_seen, VALUES(name), name),"
+                    + "   last_server = IF(VALUES(last_seen) > last_seen, VALUES(last_server), last_server),"
+                    + "   last_seen = GREATEST(last_seen, VALUES(last_seen))";
+            try (Statement s = c.createStatement()) {
+                return s.executeUpdate(sql);
+            }
+        });
+    }
+
+    private static boolean legacyTableIsCompatible(Connection c) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement("SELECT COUNT(*) FROM information_schema.columns"
+                + " WHERE table_schema = DATABASE() AND table_name = ?"
+                + " AND column_name IN ('uuid', 'minecraft_name', 'server_id', 'updated_at')")) {
+            ps.setString(1, LEGACY_PLAYERS);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && rs.getInt(1) == 4;
+            }
+        }
+    }
+
     // ---------------------------------------------------------------- joueurs
 
     public CompletableFuture<Void> upsertPlayer(UUID uuid, String name, String serverId) {

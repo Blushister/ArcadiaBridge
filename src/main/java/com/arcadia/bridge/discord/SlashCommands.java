@@ -1,7 +1,9 @@
 package com.arcadia.bridge.discord;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.config.BridgeConfig;
@@ -17,15 +19,19 @@ import com.mojang.logging.LogUtils;
 import java.awt.Color;
 
 import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.interactions.InteractionContextType;
+import net.dv8tion.jda.api.interactions.commands.Command;
 import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
+import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import net.dv8tion.jda.api.utils.MarkdownSanitizer;
 import org.slf4j.Logger;
@@ -41,13 +47,23 @@ final class SlashCommands {
     private SlashCommands() {
     }
 
-    static void register(Guild guild) {
-        guild.updateCommands().addCommands(
+    /** Commandes du mod, limitees aux serveurs Discord (pas de messages prives). */
+    private static List<SlashCommandData> definitions() {
+        DefaultMemberPermissions staff = DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS);
+        // Pendant une phase de test, /verify et /online peuvent etre reserves au staff.
+        DefaultMemberPermissions everyone = BridgeConfig.DISCORD_STAFF_ONLY_COMMANDS.get()
+                ? staff : DefaultMemberPermissions.ENABLED;
+        return List.of(
                 Commands.slash(VERIFY, Lang.get("discord.cmd.verify"))
+                        .setContexts(InteractionContextType.GUILD)
+                        .setDefaultPermissions(everyone)
                         .addOption(OptionType.STRING, "code", Lang.get("discord.cmd.verify.code"), true),
-                Commands.slash(ONLINE, Lang.get("discord.cmd.online")),
+                Commands.slash(ONLINE, Lang.get("discord.cmd.online"))
+                        .setContexts(InteractionContextType.GUILD)
+                        .setDefaultPermissions(everyone),
                 Commands.slash(MC, Lang.get("discord.cmd.mc"))
-                        .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.BAN_MEMBERS))
+                        .setContexts(InteractionContextType.GUILD)
+                        .setDefaultPermissions(staff)
                         .addSubcommands(
                                 sub("ban").addOption(OptionType.STRING, "raison", Lang.get("discord.cmd.opt.reason"), false),
                                 sub("tempban")
@@ -60,9 +76,44 @@ final class SlashCommands {
                                 sub("unmute"),
                                 sub("warn").addOption(OptionType.STRING, "raison", Lang.get("discord.cmd.opt.reason"), true),
                                 sub("info"),
-                                sub("unlink"))
-        ).queue(ok -> LOGGER.info("[ArcadiaBridge] Commandes slash Discord enregistrees."),
-                error -> LOGGER.error("[ArcadiaBridge] Enregistrement des commandes slash impossible : {}", error.toString()));
+                                sub("unlink")));
+    }
+
+    /**
+     * Enregistre les commandes du mod <b>une par une, au niveau global de l'application</b>.
+     *
+     * <p>Le bot Arcadius partage cette application : il remplace, a chacun de ses demarrages, la liste
+     * complete de ses commandes au niveau du serveur Discord. En restant au niveau global et en n'ajoutant
+     * que nos propres commandes (jamais de remplacement de liste), aucun des deux ne peut effacer l'autre.
+     */
+    static void register(JDA jda, Guild guild) {
+        for (SlashCommandData data : definitions()) {
+            jda.upsertCommand(data).queue(null,
+                    error -> LOGGER.error("[ArcadiaBridge] Commande /{} non enregistree : {}", data.getName(), error.toString()));
+        }
+        LOGGER.info("[ArcadiaBridge] Commandes slash enregistrees (globales, sans toucher aux autres commandes).");
+        // Trace utile en exploitation : on montre ce qu'on a laisse intact.
+        guild.retrieveCommands().queue(existing -> LOGGER.info(
+                        "[ArcadiaBridge] Commandes du serveur Discord laissees intactes : {}",
+                        existing.stream().map(Command::getName).sorted().toList()),
+                error -> { });
+    }
+
+    /**
+     * Auto-reparation : si une de nos commandes a disparu (par exemple si Arcadius passait un jour en
+     * enregistrement global et remplacait la liste), on la recree.
+     */
+    static void ensurePresent(JDA jda) {
+        jda.retrieveCommands().queue(existing -> {
+            Set<String> names = existing.stream().map(Command::getName).collect(Collectors.toSet());
+            for (SlashCommandData data : definitions()) {
+                if (!names.contains(data.getName())) {
+                    LOGGER.warn("[ArcadiaBridge] Commande /{} absente : recreation.", data.getName());
+                    jda.upsertCommand(data).queue(null, error -> LOGGER.error(
+                            "[ArcadiaBridge] Recreation de /{} impossible : {}", data.getName(), error.toString()));
+                }
+            }
+        }, error -> LOGGER.warn("[ArcadiaBridge] Lecture des commandes impossible : {}", error.toString()));
     }
 
     private static SubcommandData sub(String name) {
