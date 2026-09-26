@@ -4,6 +4,7 @@
   "package": "com.arcadia.bridge.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "CommonHooksMixin",
     "PlayerListMixin"
   ],
   "injectors": {

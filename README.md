@@ -127,6 +127,35 @@ Les failles de l'ancien mod sont corrigées :
 - les adresses IP ne sont **jamais stockées** : seule une empreinte salée l'est, oubliée après le délai
   configuré (90 jours par défaut), et elle ne sert qu'à alerter le staff.
 
+## Déploiement sur l'infrastructure Arcadia
+
+**Bot Discord partagé avec Arcadius.** Le mod utilise l'application Discord d'Arcadius, qui remplace à
+chaque démarrage la liste complète de ses commandes au niveau du serveur Discord. Pour que ni l'un ni
+l'autre ne puisse effacer les commandes de l'autre, le mod enregistre les siennes **au niveau global, une
+par une**, et le serveur primaire vérifie toutes les ~5 minutes qu'elles existent toujours. Au
+démarrage, le log liste les commandes du serveur Discord « laissées intactes » : on doit y voir celles
+d'Arcadius. Le statut du bot est laissé à Arcadius (`botPresence = false`).
+
+Pendant une phase de test sur le serveur Discord public, `staffOnlyCommands = true` réserve `/verify` et
+`/online` au staff.
+
+**Mise en forme du chat par LPC.** LPC écoute le chat en priorité maximale, diffuse lui-même le message
+formaté puis annule l'événement d'origine. Le mod bloque donc les joueurs muets **avant la création de
+l'événement de chat** (mixin sur `CommonHooks.onServerChatSubmittedEvent`) : aucun mod de chat ne peut
+passer devant, quel que soit l'ordre de chargement. Et en présence de LPC, un message annulé est relayé,
+puisqu'il a déjà été diffusé en jeu.
+
+> Ne pas déclarer d'ordre de chargement par rapport à LPC : LPC se déclare lui-même avant LuckPerms, ce
+> qui crée un cycle que NeoForge refuse (le serveur ne démarre plus).
+
+**Reprise de l'ancien mod.** Au démarrage, le registre des joueurs de `arcadiabridge 0.5.x` (table
+`players` de la même base) est recopié dans `ab_players` : UUID, pseudo et serveur les plus récents.
+L'ancienne table est seulement lue ; l'import est rejouable (`[database] importLegacyPlayers`). L'ancien
+mod n'avait produit ni liaison Discord ni sanction : il n'y a rien d'autre à reprendre.
+
+L'ancien et le nouveau mod portent le même identifiant (`arcadiabridge`) : ils ne peuvent pas être
+installés ensemble sur un même serveur.
+
 ## Notes techniques
 
 - Aucune requête SQL sur le thread principal : les vérifications en jeu (ban, mute, liaison) lisent un

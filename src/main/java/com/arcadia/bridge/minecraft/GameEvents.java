@@ -7,6 +7,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.arcadia.bridge.Bridge;
+import com.arcadia.bridge.compat.ChatFormatterCompat;
 import com.arcadia.bridge.compat.LuckPermsHook;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.discord.ChatWebhook;
@@ -96,31 +97,21 @@ public final class GameEvents {
 
     // ---------------------------------------------------------------- chat
 
-    /** Blocage (mute, non verifie) : priorite haute pour passer avant les autres mods de chat. */
-    @SubscribeEvent(priority = EventPriority.HIGH)
-    public static void onChatBlock(ServerChatEvent event) {
-        Bridge bridge = Bridge.get();
-        if (bridge == null) {
-            return;
-        }
-        ServerPlayer player = event.getPlayer();
-        var mute = bridge.cache().activeMute(player.getUUID());
-        if (mute.isPresent()) {
-            event.setCanceled(true);
-            player.sendSystemMessage(SanctionService.muteMessage(mute.get()));
-            return;
-        }
-        if (BridgeConfig.VERIFICATION_BLOCK_CHAT.get() && bridge.verification().isPending(player.getUUID())) {
-            event.setCanceled(true);
-            player.sendSystemMessage(Lang.mc("verify.chat_blocked"));
-        }
-    }
-
-    /** Relais vers Discord et vers les autres serveurs, seulement si aucun mod n'a annule le message. */
-    @SubscribeEvent(priority = EventPriority.LOWEST)
+    /**
+     * Relais vers Discord et vers les autres serveurs, en dernier.
+     *
+     * <p>Les joueurs muets ou en attente de verification n'arrivent jamais jusqu'ici : ils sont bloques
+     * avant la creation de l'evenement (ChatGuard). Sans mod de mise en forme, un message annule a ete
+     * bloque par un autre mod (zone protegee, saisie en cours...) : on ne le relaie pas. Avec LPC,
+     * l'annulation est la norme, puisque LPC a deja diffuse le message lui-meme : on le relaie.
+     */
+    @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
     public static void onChatRelay(ServerChatEvent event) {
         Bridge bridge = Bridge.get();
         if (bridge == null) {
+            return;
+        }
+        if (event.isCanceled() && !ChatFormatterCompat.rebroadcastsChat()) {
             return;
         }
         if (!BridgeConfig.CHAT_TO_DISCORD.get() || !bridge.discord().isReady()) {
