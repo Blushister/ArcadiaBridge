@@ -111,54 +111,6 @@ grade de la vérification.
 - Les **boutons des signalements** revalident la permission au clic : un message reste cliquable
   longtemps après, y compris par quelqu'un qui a perdu son rôle entre-temps.
 
-## Sécurité
-
-Les failles de l'ancien mod sont corrigées :
-
-- le code de vérification n'est **jamais publié sur Discord** ; il est affiché au seul joueur concerné ;
-- code tiré avec `SecureRandom`, stocké **haché** (SHA-256), à **usage unique**, avec **expiration
-  vérifiée** et limitation du nombre d'essais par compte Discord ;
-- un compte déjà lié ne peut pas être re-lié par quelqu'un d'autre ;
-- toutes les mentions sont désactivées sur les messages du bot **et** le texte des mentions est
-  désamorcé : un joueur ne peut ni déclencher ni afficher un `@everyone` depuis le chat Minecraft ;
-- le clic sur le code en jeu copie **le code seul** : coller « /verify CODE » dans Discord enverrait un
-  message visible de tous au lieu d'ouvrir la commande slash ;
-- un `/verify CODE` ou `!verify CODE` écrit en message texte est traité **puis effacé**, pour que le code
-  ne reste pas affiché dans le salon ;
-- codes couleur et markdown neutralisés dans les deux sens ;
-- requêtes SQL exclusivement préparées ;
-- les adresses IP ne sont **jamais stockées** : seule une empreinte salée l'est, oubliée après le délai
-  configuré (90 jours par défaut), et elle ne sert qu'à alerter le staff.
-
-## Déploiement sur l'infrastructure Arcadia
-
-**Bot Discord partagé avec Arcadius.** Le mod utilise l'application Discord d'Arcadius, qui remplace à
-chaque démarrage la liste complète de ses commandes au niveau du serveur Discord. Pour que ni l'un ni
-l'autre ne puisse effacer les commandes de l'autre, le mod enregistre les siennes **au niveau global, une
-par une**, et le serveur primaire vérifie toutes les ~5 minutes qu'elles existent toujours. Au
-démarrage, le log liste les commandes du serveur Discord « laissées intactes » : on doit y voir celles
-d'Arcadius. Le statut du bot est laissé à Arcadius (`botPresence = false`).
-
-Pendant une phase de test sur le serveur Discord public, `staffOnlyCommands = true` réserve `/verify` et
-`/online` au staff.
-
-**Mise en forme du chat par LPC.** LPC écoute le chat en priorité maximale, diffuse lui-même le message
-formaté puis annule l'événement d'origine. Le mod bloque donc les joueurs muets **avant la création de
-l'événement de chat** (mixin sur `CommonHooks.onServerChatSubmittedEvent`) : aucun mod de chat ne peut
-passer devant, quel que soit l'ordre de chargement. Et en présence de LPC, un message annulé est relayé,
-puisqu'il a déjà été diffusé en jeu.
-
-> Ne pas déclarer d'ordre de chargement par rapport à LPC : LPC se déclare lui-même avant LuckPerms, ce
-> qui crée un cycle que NeoForge refuse (le serveur ne démarre plus).
-
-**Reprise de l'ancien mod.** Au démarrage, le registre des joueurs de `arcadiabridge 0.5.x` (table
-`players` de la même base) est recopié dans `ab_players` : UUID, pseudo et serveur les plus récents.
-L'ancienne table est seulement lue ; l'import est rejouable (`[database] importLegacyPlayers`). L'ancien
-mod n'avait produit ni liaison Discord ni sanction : il n'y a rien d'autre à reprendre.
-
-L'ancien et le nouveau mod portent le même identifiant (`arcadiabridge`) : ils ne peuvent pas être
-installés ensemble sur un même serveur.
-
 ## Notes techniques
 
 - Aucune requête SQL sur le thread principal : les vérifications en jeu (ban, mute, liaison) lisent un
@@ -181,9 +133,6 @@ installés ensemble sur un même serveur.
 | `ab_servers` | état de chaque serveur (joueurs connectés, dernier signe de vie) |
 | `ab_reports` | signalements, leur regroupement et leur traitement |
 | `ab_chat` | relais du chat entre serveurs (purgé toutes les 5 minutes) |
-
-Les tables de l'ancien mod ne sont pas réutilisées. Les joueurs devront refaire `/verify` une fois —
-c'est volontaire, les anciennes liaisons n'étant pas fiables.
 
 ## Développement
 
