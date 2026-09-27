@@ -51,8 +51,9 @@ public final class ChatFormatterCompat {
             return Optional.empty();
         }
         try {
-            // Meme entree que LPC lui-meme : "<pseudo>" suivi du message.
-            Component input = Component.literal("<" + player.getName().getString() + ">").append(message);
+            // Meme entree que LPC lui-meme : "<pseudo> " suivi du message. LPC retire tout ce qui precede
+            // le premier "> " : sans l'espace, le "<pseudo>" resterait colle au message.
+            Component input = Component.literal("<" + player.getName().getString() + "> ").append(message);
             Pair<Boolean, Component> result = (Pair<Boolean, Component>) handle.invoke(player, input);
             if (result != null && Boolean.TRUE.equals(result.getFirst()) && result.getSecond() != null) {
                 return Optional.of(result.getSecond());
