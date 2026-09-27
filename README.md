@@ -195,3 +195,12 @@ c'est volontaire, les anciennes liaisons n'étant pas fiables.
 ./gradlew runClient2   # second client (pseudo Dev2)
 ./gradlew test         # tests (voir TESTING.md)
 ```
+
+## Licence
+
+ArcadiaBridge est distribué sous **GNU Lesser General Public License v3.0** (LGPL-3.0-only).
+Voir [`COPYING.LESSER`](COPYING.LESSER), qui complète la GNU GPL v3 fournie dans [`COPYING`](COPYING).
+
+Le jar embarque des bibliothèques sous leurs propres licences, compatibles : JDA, HikariCP et Jackson
+(Apache 2.0), OkHttp et Kotlin (Apache 2.0), Trove4j (LGPL 2.1), MySQL Connector/J (GPL 2.0 avec
+l'exception Universal FOSS).

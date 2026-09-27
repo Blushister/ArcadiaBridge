@@ -123,6 +123,9 @@ shadowJar {
         'com.zaxxer.hikari',
     ].each { pkg -> relocate pkg, "${relocationRoot}.${pkg}" }
 
+    // Textes de la licence (LGPL 3, qui complete la GPL 3) livres avec le mod
+    from(file('COPYING'), file('COPYING.LESSER'))
+
     mergeServiceFiles()
     exclude 'module-info.class'
     exclude 'META-INF/versions/*/module-info.class'
