@@ -15,6 +15,7 @@ import com.arcadia.bridge.discord.DiscordLogs;
 import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.permission.Permissions;
 import com.arcadia.bridge.sanction.SanctionService;
+import com.arcadia.bridge.tabs.ChatTabs;
 import com.arcadia.bridge.util.Text;
 import com.mojang.brigadier.context.ParsedCommandNode;
 import net.minecraft.commands.CommandSourceStack;
@@ -89,6 +90,7 @@ public final class GameEvents {
         }
         bridge.verification().onLeave(player);
         bridge.crossChat().onLeave(player);
+        ChatTabs.onLogout(player);
         if (ANNOUNCED.remove(player.getUUID()) && BridgeConfig.STATUS_JOIN_LEAVE.get() && !bridge.isStopping()) {
             announce(bridge, player, "discord.status.leave", "name", player.getGameProfile().getName(),
                     DiscordLogs.Kind.LEAVE);

@@ -4,6 +4,7 @@ import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.discord.DiscordLogs;
 import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.minecraft.GameEvents;
+import com.arcadia.bridge.tabs.ChatTabs;
 import com.arcadia.bridge.util.Text;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -21,6 +22,7 @@ public final class ArcadiaBridge {
 
     public ArcadiaBridge(IEventBus modBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.COMMON, BridgeConfig.SPEC, "arcadiabridge.toml");
+        modBus.addListener(ChatTabs::register);
         NeoForge.EVENT_BUS.register(GameEvents.class);
         NeoForge.EVENT_BUS.addListener(ArcadiaBridge::onServerStarting);
         NeoForge.EVENT_BUS.addListener(ArcadiaBridge::onServerStarted);

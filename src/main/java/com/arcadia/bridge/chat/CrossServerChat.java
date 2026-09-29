@@ -11,6 +11,8 @@ import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.data.Models.ChatLine;
 import com.arcadia.bridge.data.Repository;
+import com.arcadia.bridge.tabs.ChatTabs;
+import com.arcadia.bridge.tabs.TabsProtocol;
 import com.arcadia.bridge.util.Text;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.HolderLookup;
@@ -126,7 +128,12 @@ public final class CrossServerChat {
                 HolderLookup.Provider registries = bridge.server().registryAccess();
                 List<Component> components = lines.stream().map(line -> format(line, registries)).toList();
                 for (ServerPlayer player : bridge.server().getPlayerList().getPlayers()) {
-                    if (isGlobal(player.getUUID())) {
+                    if (ChatTabs.supports(player)) {
+                        // Avec ArcadiaChat, le joueur recoit tout : c'est son onglet qui filtre.
+                        for (int i = 0; i < components.size(); i++) {
+                            ChatTabs.send(player, TabsProtocol.CHANNEL_GLOBAL, lines.get(i).serverId(), components.get(i));
+                        }
+                    } else if (isGlobal(player.getUUID())) {
                         components.forEach(player::sendSystemMessage);
                     }
                 }

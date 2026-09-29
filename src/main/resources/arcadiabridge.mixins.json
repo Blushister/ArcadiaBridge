@@ -5,7 +5,9 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "CommonHooksMixin",
-    "PlayerListMixin"
+    "LpcSendMixin",
+    "PlayerListMixin",
+    "ServerPlayerChatMixin"
   ],
   "injectors": {
     "defaultRequire": 1

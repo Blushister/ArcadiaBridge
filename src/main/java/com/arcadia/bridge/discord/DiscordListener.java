@@ -5,6 +5,8 @@ import java.util.concurrent.TimeUnit;
 import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.i18n.Lang;
+import com.arcadia.bridge.tabs.ChatTabs;
+import com.arcadia.bridge.tabs.TabsProtocol;
 import com.arcadia.bridge.util.Text;
 import com.arcadia.bridge.util.VerifyInput;
 import com.arcadia.bridge.verification.VerificationService.VerifyResult;
@@ -17,6 +19,7 @@ import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEve
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 
 /** Evenements Discord : chat relaye en jeu, commandes, bans faits sur Discord. */
 public final class DiscordListener extends ListenerAdapter {
@@ -67,7 +70,12 @@ public final class DiscordListener extends ListenerAdapter {
                 "name", Text.forMinecraft(name, 32),
                 "message", Text.forMinecraft(content, BridgeConfig.CHAT_MAX_LENGTH.get()));
         Component component = Component.literal(line);
-        bridge.runOnMain(() -> bridge.server().getPlayerList().broadcastSystemMessage(component, false));
+        bridge.runOnMain(() -> {
+            bridge.server().sendSystemMessage(component);
+            for (ServerPlayer player : bridge.server().getPlayerList().getPlayers()) {
+                ChatTabs.deliver(player, TabsProtocol.CHANNEL_DISCORD, "", component);
+            }
+        });
     }
 
     /** "!verify CODE" : on supprime le message (le code ne reste pas visible) et on repond brievement. */
