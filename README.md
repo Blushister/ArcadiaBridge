@@ -9,6 +9,12 @@ Réécriture complète du mod `arcadiabridge 0.5.13` (aucun code repris de l'anc
 - **Annonces** : démarrage et arrêt du serveur, connexions, déconnexions, morts.
 - **Chat inter-serveurs** : les joueurs des différents serveurs Arcadia se parlent, chacun pouvant
   rester en local avec `/chat`. Côté Discord, chaque serveur garde son propre salon.
+- **Chat staff** commun à tous les serveurs (`/sc`), qui reçoit aussi les alertes (signalements,
+  contournement de ban).
+- **Canaux thématiques** (commerce, recrutement…) créés par le staff, communs à tous les serveurs (`/canal`).
+- **Messages privés entre serveurs** : `/msg` atteint un joueur connecté à un autre serveur Arcadia.
+- **Chat à onglets** avec le mod client [ArcadiaChat](https://github.com/Blushister/ArcadiaChat) : chaque
+  message part étiqueté (global, serveur, privé, staff, canal) ; les joueurs sans le mod gardent le chat habituel.
 - **Signalements** : `/report <joueur> <raison>` en jeu, transmis au staff sur Discord avec des boutons
   Bannir / Rendre muet / Ignorer.
 - **Alerte de contournement de ban** : prévient le staff quand un compte banni partage l'adresse d'un
@@ -90,8 +96,15 @@ Les textes affichés sont modifiables dans `config/arcadiabridge/lang/<langue>.j
 | `/arcadia_verify` | tout le monde |
 | `/report <joueur> <raison>` | tout le monde (délai anti-abus) |
 | `/chat [global\|local]` | tout le monde |
+| `/msg <joueur> <message>` | tout le monde ; atteint aussi un joueur d'un autre serveur |
+| `/sc <message>` | `arcadiabridge.chat.staff` |
+| `/canal list\|join\|leave\|say <canal> [message]` | tout le monde |
+| `/canal create\|delete <canal>` | `arcadiabridge.chat.channels.manage` |
 
 Durées : `30m`, `2h`, `7d`, `1w`, ou combinées (`1d12h`).
+
+Avec LuckPerms qui filtre les commandes (`command.<nom>`), il faut aussi autoriser `command.sc` pour le
+staff et `command.canal` pour les joueurs.
 
 Les permissions passent par l'API de permissions NeoForge, donc par LuckPerms s'il est installé. Sans
 LuckPerms, elles reviennent aux opérateurs (niveau 2). `arcadiabridge.verification.bypass` dispense un

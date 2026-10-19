@@ -136,5 +136,19 @@
   "report.sanction_reason": "Signalement #{id} : {reason}",
   "log.evasion": "Retour possible d'un joueur banni",
   "log.evasion.note": "Meme adresse qu'un compte banni. A verifier : une adresse peut etre partagee (meme foyer, reseau public, operateur mobile). Aucune sanction n'a ete appliquee.",
-  "log.evasion.matches": "Comptes bannis concernes"
+  "log.evasion.matches": "Comptes bannis concernes",
+  "alert.report": "Signalement #{id} : {reporter} signale {target} ({reason})",
+  "alert.evasion": "{name} se connecte depuis la même adresse qu'un compte banni : {others}",
+  "cmd.staff.disabled": "&cLe chat staff est désactivé sur ce serveur.",
+  "cmd.channel.disabled": "&cLes canaux sont désactivés sur ce serveur.",
+  "cmd.channel.invalid": "&cNom de canal invalide : 2 à 24 caractères parmi a-z, 0-9, - et _.",
+  "cmd.channel.unknown": "&cLe canal #{channel} n'existe pas. Liste des canaux : /canal list",
+  "cmd.channel.not_member": "&cTu n'es pas dans le canal #{channel}. Rejoins-le avec /canal join {channel}",
+  "cmd.channel.joined": "&aTu as rejoint #{channel}. Écris-y avec /canal say {channel} <message> (ou dans son onglet avec ArcadiaChat).",
+  "cmd.channel.left": "&aTu as quitté #{channel}.",
+  "cmd.channel.created": "&aCanal #{channel} créé. Les joueurs le rejoignent avec /canal join {channel}",
+  "cmd.channel.exists": "&eLe canal #{channel} existe déjà.",
+  "cmd.channel.deleted": "&aCanal #{channel} supprimé.",
+  "cmd.channel.list": "&6Canaux : &f{all}\n&7Tes canaux : &f{mine}",
+  "cmd.channel.none": "aucun"
 }

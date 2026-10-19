@@ -136,5 +136,19 @@
   "report.sanction_reason": "Report #{id}: {reason}",
   "log.evasion": "Possible return of a banned player",
   "log.evasion.note": "Same address as a banned account. Worth checking: an address can be shared (same household, public network, mobile carrier). No sanction was applied.",
-  "log.evasion.matches": "Banned accounts involved"
+  "log.evasion.matches": "Banned accounts involved",
+  "alert.report": "Report #{id}: {reporter} reported {target} ({reason})",
+  "alert.evasion": "{name} joined from the same address as a banned account: {others}",
+  "cmd.staff.disabled": "&cStaff chat is disabled on this server.",
+  "cmd.channel.disabled": "&cChannels are disabled on this server.",
+  "cmd.channel.invalid": "&cInvalid channel name: 2 to 24 characters among a-z, 0-9, - and _.",
+  "cmd.channel.unknown": "&cChannel #{channel} does not exist. Channel list: /canal list",
+  "cmd.channel.not_member": "&cYou are not in #{channel}. Join it with /canal join {channel}",
+  "cmd.channel.joined": "&aYou joined #{channel}. Write with /canal say {channel} <message> (or in its tab with ArcadiaChat).",
+  "cmd.channel.left": "&aYou left #{channel}.",
+  "cmd.channel.created": "&aChannel #{channel} created. Players join it with /canal join {channel}",
+  "cmd.channel.exists": "&eChannel #{channel} already exists.",
+  "cmd.channel.deleted": "&aChannel #{channel} deleted.",
+  "cmd.channel.list": "&6Channels: &f{all}\n&7Your channels: &f{mine}",
+  "cmd.channel.none": "none"
 }

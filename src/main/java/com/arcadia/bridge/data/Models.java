@@ -49,7 +49,7 @@ public final class Models {
      * Permet a Discord de savoir qui est en ligne et ou, sans lien direct entre les serveurs.
      */
     public record ServerStatus(String serverId, String displayName, int players, int maxPlayers,
-                               java.util.List<String> names, long updatedAt) {
+                               java.util.List<String> names, long updatedAt, String address) {
 
         /** Un serveur qui n'a pas donne signe de vie depuis une minute est considere hors ligne. */
         public boolean isOnline(long now) {
@@ -77,7 +77,7 @@ public final class Models {
      * telle que le serveur d'origine l'a affichee (JSON de composant), ou null.
      */
     public record ChatLine(long id, String serverId, String playerName, String prefix, String message,
-                           String formatted) {
+                           String formatted, String channel) {
     }
 
     public enum RedeemStatus {

@@ -37,6 +37,8 @@ public final class Repository {
     private final String servers;
     private final String reports;
     private final String chat;
+    private final String channels;
+    private final String channelMembers;
 
     public Repository(Database db) {
         this.db = db;
@@ -47,12 +49,20 @@ public final class Repository {
         this.servers = db.t("servers");
         this.reports = db.t("reports");
         this.chat = db.t("chat");
+        this.channels = db.t("channels");
+        this.channelMembers = db.t("channel_members");
     }
 
     // ---------------------------------------------------------------- etat des serveurs
 
     /** Signale que ce serveur est vivant, avec les joueurs connectes. */
     public CompletableFuture<Void> heartbeat(String serverId, String displayName, List<String> names, int maxPlayers) {
+        return heartbeat(serverId, displayName, names, maxPlayers, null);
+    }
+
+    /** {@code address} : adresse publique du serveur, pour que les joueurs puissent le rejoindre (ou null). */
+    public CompletableFuture<Void> heartbeat(String serverId, String displayName, List<String> names, int maxPlayers,
+                                             String address) {
         String joined = String.join(",", names);
         if (joined.length() > 4000) {
             joined = joined.substring(0, 4000);
@@ -60,16 +70,18 @@ public final class Repository {
         String playerNames = joined;
         return db.async(c -> {
             try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + servers
-                    + " (server_id, display_name, players, max_players, player_names, updated_at)"
-                    + " VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE display_name = VALUES(display_name),"
+                    + " (server_id, display_name, players, max_players, player_names, updated_at, address)"
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE display_name = VALUES(display_name),"
                     + " players = VALUES(players), max_players = VALUES(max_players),"
-                    + " player_names = VALUES(player_names), updated_at = VALUES(updated_at)")) {
+                    + " player_names = VALUES(player_names), updated_at = VALUES(updated_at),"
+                    + " address = VALUES(address)")) {
                 ps.setString(1, serverId);
                 ps.setString(2, displayName);
                 ps.setInt(3, names.size());
                 ps.setInt(4, maxPlayers);
                 ps.setString(5, playerNames);
                 ps.setLong(6, System.currentTimeMillis());
+                ps.setString(7, address == null || address.isBlank() ? null : address);
                 ps.executeUpdate();
             }
             return null;
@@ -81,13 +93,13 @@ public final class Repository {
             List<ServerStatus> list = new ArrayList<>();
             try (Statement s = c.createStatement();
                  ResultSet rs = s.executeQuery("SELECT server_id, display_name, players, max_players, player_names,"
-                         + " updated_at FROM " + servers + " ORDER BY server_id")) {
+                         + " updated_at, address FROM " + servers + " ORDER BY server_id")) {
                 while (rs.next()) {
                     String names = rs.getString(5);
                     List<String> players = names == null || names.isBlank() ? List.of()
                             : List.of(names.split(","));
                     list.add(new ServerStatus(rs.getString(1), rs.getString(2), rs.getInt(3), rs.getInt(4),
-                            players, rs.getLong(6)));
+                            players, rs.getLong(6), rs.getString(7)));
                 }
             }
             return list;
@@ -196,15 +208,26 @@ public final class Repository {
     /** {@code formatted} : la ligne mise en forme sur le serveur d'origine (JSON de composant), ou null. */
     public CompletableFuture<Void> publishChat(String serverId, String playerName, String prefix, String message,
                                                String formatted) {
+        return publishChat(serverId, playerName, prefix, message, formatted, "global");
+    }
+
+    /**
+     * {@code channel} : "global" (chat inter-serveurs), "staff", "alert" (alertes pour le staff) ou "#nom" pour
+     * un canal thematique.
+     */
+    public CompletableFuture<Void> publishChat(String serverId, String playerName, String prefix, String message,
+                                               String formatted, String channel) {
         return db.async(c -> {
             try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + chat
-                    + " (server_id, player_name, prefix, message, formatted, created_at) VALUES (?, ?, ?, ?, ?, ?)")) {
+                    + " (server_id, player_name, prefix, message, formatted, created_at, channel)"
+                    + " VALUES (?, ?, ?, ?, ?, ?, ?)")) {
                 ps.setString(1, serverId);
                 ps.setString(2, playerName);
                 ps.setString(3, prefix);
                 ps.setString(4, message);
                 ps.setString(5, formatted);
                 ps.setLong(6, System.currentTimeMillis());
+                ps.setString(7, channel);
                 ps.executeUpdate();
             }
             return null;
@@ -215,14 +238,14 @@ public final class Repository {
     public CompletableFuture<List<ChatLine>> fetchChat(long afterId, String excludeServerId) {
         return db.async(c -> {
             List<ChatLine> lines = new ArrayList<>();
-            try (PreparedStatement ps = c.prepareStatement("SELECT id, server_id, player_name, prefix, message, formatted FROM "
+            try (PreparedStatement ps = c.prepareStatement("SELECT id, server_id, player_name, prefix, message, formatted, channel FROM "
                     + chat + " WHERE id > ? AND server_id <> ? ORDER BY id LIMIT 50")) {
                 ps.setLong(1, afterId);
                 ps.setString(2, excludeServerId);
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
                         lines.add(new ChatLine(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4),
-                                rs.getString(5), rs.getString(6)));
+                                rs.getString(5), rs.getString(6), rs.getString(7)));
                     }
                 }
             }
@@ -753,5 +776,94 @@ public final class Repository {
                 return rs.next();
             }
         }
+    }
+
+    // ---------------------------------------------------------------- canaux thematiques
+
+    public CompletableFuture<List<String>> listChannels() {
+        return db.async(c -> {
+            List<String> names = new ArrayList<>();
+            try (Statement s = c.createStatement();
+                 ResultSet rs = s.executeQuery("SELECT name FROM " + channels + " ORDER BY name")) {
+                while (rs.next()) {
+                    names.add(rs.getString(1));
+                }
+            }
+            return names;
+        });
+    }
+
+    /** @return false si le canal existe deja */
+    public CompletableFuture<Boolean> createChannel(String name, String createdBy) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("INSERT IGNORE INTO " + channels
+                    + " (name, created_by, created_at) VALUES (?, ?, ?)")) {
+                ps.setString(1, name);
+                ps.setString(2, createdBy);
+                ps.setLong(3, System.currentTimeMillis());
+                return ps.executeUpdate() == 1;
+            }
+        });
+    }
+
+    /** Supprime le canal et ses membres. @return false s'il n'existait pas */
+    public CompletableFuture<Boolean> deleteChannel(String name) {
+        return db.transaction(c -> {
+            try (PreparedStatement members = c.prepareStatement("DELETE FROM " + channelMembers + " WHERE channel = ?");
+                 PreparedStatement channel = c.prepareStatement("DELETE FROM " + channels + " WHERE name = ?")) {
+                members.setString(1, name);
+                members.executeUpdate();
+                channel.setString(1, name);
+                return channel.executeUpdate() == 1;
+            }
+        });
+    }
+
+    /** Canaux rejoints par un joueur (seulement ceux qui existent encore). */
+    public CompletableFuture<List<String>> memberChannels(UUID uuid) {
+        return db.async(c -> {
+            List<String> names = new ArrayList<>();
+            try (PreparedStatement ps = c.prepareStatement("SELECT m.channel FROM " + channelMembers + " m JOIN "
+                    + channels + " ch ON ch.name = m.channel WHERE m.uuid = ? ORDER BY m.channel")) {
+                ps.setString(1, uuid.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        names.add(rs.getString(1));
+                    }
+                }
+            }
+            return names;
+        });
+    }
+
+    /** @return false si le canal n'existe pas */
+    public CompletableFuture<Boolean> joinChannel(UUID uuid, String name) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("INSERT IGNORE INTO " + channelMembers
+                    + " (uuid, channel, joined_at) SELECT ?, name, ? FROM " + channels + " WHERE name = ?")) {
+                ps.setString(1, uuid.toString());
+                ps.setLong(2, System.currentTimeMillis());
+                ps.setString(3, name);
+                ps.executeUpdate();
+            }
+            try (PreparedStatement ps = c.prepareStatement("SELECT 1 FROM " + channels + " WHERE name = ?")) {
+                ps.setString(1, name);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next();
+                }
+            }
+        });
+    }
+
+    public CompletableFuture<Void> leaveChannel(UUID uuid, String name) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + channelMembers
+                    + " WHERE uuid = ? AND channel = ?")) {
+                ps.setString(1, uuid.toString());
+                ps.setString(2, name);
+                ps.executeUpdate();
+            }
+            return null;
+        });
     }
 }

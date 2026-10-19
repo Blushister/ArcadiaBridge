@@ -9,6 +9,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import com.arcadia.bridge.chat.ChatChannels;
 import com.arcadia.bridge.chat.CrossServerChat;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.data.BridgeCache;
@@ -23,6 +24,7 @@ import com.arcadia.bridge.discord.DiscordBot;
 import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.report.ReportService;
 import com.arcadia.bridge.security.IpGuard;
+import com.arcadia.bridge.tabs.ChatTabs;
 import com.arcadia.bridge.sanction.SanctionService;
 import com.arcadia.bridge.verification.VerificationService;
 import com.mojang.logging.LogUtils;
@@ -48,6 +50,7 @@ public final class Bridge {
     private final SanctionService sanctions;
     private final ReportService reports;
     private final CrossServerChat crossChat;
+    private final ChatChannels channels;
     private final IpGuard ipGuard;
     private final ScheduledExecutorService scheduler;
 
@@ -70,6 +73,7 @@ public final class Bridge {
         this.sanctions = new SanctionService(this);
         this.reports = new ReportService(this);
         this.crossChat = new CrossServerChat(this);
+        this.channels = new ChatChannels(this);
         this.ipGuard = new IpGuard(this);
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "ArcadiaBridge-Sync");
@@ -98,7 +102,7 @@ public final class Bridge {
         bridge.crossChat.start();
         int interval = BridgeConfig.SANCTIONS_POLL_SECONDS.get();
         bridge.scheduler.scheduleWithFixedDelay(bridge::safeSync, interval, interval, TimeUnit.SECONDS);
-        if (CrossServerChat.isEnabled()) {
+        if (CrossServerChat.relayActive()) {
             int chatInterval = BridgeConfig.CHAT_CROSS_SERVER_POLL.get();
             bridge.scheduler.scheduleWithFixedDelay(bridge.crossChat::poll, chatInterval, chatInterval,
                     TimeUnit.SECONDS);
@@ -184,7 +188,12 @@ public final class Bridge {
 
         // Chaque serveur signale son etat : c'est ce qui alimente /online et le statut du bot.
         repository.heartbeat(Bridge.serverId(), BridgeConfig.SERVER_NAME.get(), onlineNames,
-                server.getMaxPlayers()).join();
+                server.getMaxPlayers(), BridgeConfig.PUBLIC_ADDRESS.get()).join();
+        // Serveurs en ligne, pour les liens "rejoindre ce serveur" d'ArcadiaChat.
+        long seen = System.currentTimeMillis();
+        List<ServerStatus> online = repository.loadServers().join().stream().filter(st -> st.isOnline(seen)).toList();
+        channels.updateRemotePlayers(online);
+        runOnMain(() -> ChatTabs.updateServers(online));
         if (isPrimary() && discord.isReady()) {
             long now = System.currentTimeMillis();
             if (BridgeConfig.STATUS_BOT_PRESENCE.get()) {
@@ -270,6 +279,10 @@ public final class Bridge {
 
     public CrossServerChat crossChat() {
         return crossChat;
+    }
+
+    public ChatChannels channels() {
+        return channels;
     }
 
     public IpGuard ipGuard() {

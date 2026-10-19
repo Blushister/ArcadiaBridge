@@ -16,6 +16,7 @@ public final class BridgeConfig {
     public static final ModConfigSpec.ConfigValue<String> SERVER_ID;
     public static final ModConfigSpec.ConfigValue<String> SERVER_NAME;
     public static final ModConfigSpec.ConfigValue<String> LANGUAGE;
+    public static final ModConfigSpec.ConfigValue<String> PUBLIC_ADDRESS;
     public static final ModConfigSpec.ConfigValue<String> PRESENTATION;
 
     // database
@@ -52,6 +53,12 @@ public final class BridgeConfig {
     public static final ModConfigSpec.BooleanValue CHAT_CROSS_SERVER;
     public static final ModConfigSpec.ConfigValue<String> CHAT_CROSS_SERVER_FORMAT;
     public static final ModConfigSpec.ConfigValue<String> CHAT_CROSS_SERVER_TAG;
+    public static final ModConfigSpec.BooleanValue CHAT_STAFF;
+    public static final ModConfigSpec.ConfigValue<String> CHAT_STAFF_FORMAT;
+    public static final ModConfigSpec.ConfigValue<String> CHAT_ALERT_FORMAT;
+    public static final ModConfigSpec.BooleanValue CHAT_CHANNELS;
+    public static final ModConfigSpec.ConfigValue<String> CHAT_CHANNEL_FORMAT;
+    public static final ModConfigSpec.BooleanValue CHAT_TYPING;
     public static final ModConfigSpec.BooleanValue CHAT_CROSS_SERVER_DEFAULT;
     public static final ModConfigSpec.IntValue CHAT_CROSS_SERVER_POLL;
 
@@ -99,6 +106,10 @@ public final class BridgeConfig {
                 .define("serverName", "");
         LANGUAGE = b.comment("Langue des messages : fr_fr ou en_us. Les textes sont modifiables dans config/arcadiabridge/lang/.")
                 .define("language", "fr_fr");
+        PUBLIC_ADDRESS = b.comment(
+                "Adresse publique de ce serveur (ex : serveur1.arcadia-eop.com:25565). Avec ArcadiaChat, les joueurs",
+                "des autres serveurs peuvent la rejoindre en cliquant sur un message venu d'ici. Vide = pas de lien.")
+                .define("publicAddress", "");
         PRESENTATION = b.comment(
                         "Style des messages envoyes sur Discord :",
                         "  compact : tout est poste par le bot, une ligne par evenement.",
@@ -182,6 +193,22 @@ public final class BridgeConfig {
                 .define("crossServerByDefault", true);
         CHAT_CROSS_SERVER_POLL = b.comment("Frequence de releve du chat des autres serveurs, en secondes.")
                 .defineInRange("crossServerIntervalSeconds", 2, 1, 30);
+        CHAT_STAFF = b.comment(
+                "Chat du staff, commun a tous les serveurs : /sc <message>, ou l'onglet Staff d'ArcadiaChat.",
+                "Il recoit aussi les alertes (signalements, contournement de ban). Permission : arcadiabridge.chat.staff")
+                .define("staffChat", true);
+        CHAT_STAFF_FORMAT = b.comment("Format du chat staff. Variables : {server} {name} {message}")
+                .define("staffFormat", "&c[Staff] &8[{server}] &f{name}&7 : &f{message}");
+        CHAT_ALERT_FORMAT = b.comment("Format des alertes envoyees au staff en jeu. Variables : {server} {message}")
+                .define("alertFormat", "&c[Alerte] &8[{server}] &e{message}");
+        CHAT_CHANNELS = b.comment(
+                "Canaux thematiques (commerce, recrutement...) crees par le staff avec /canal create, rejoints par",
+                "les joueurs avec /canal join. Communs a tous les serveurs.")
+                .define("channels", true);
+        CHAT_CHANNEL_FORMAT = b.comment("Format des canaux thematiques. Variables : {channel} {server} {name} {message}")
+                .define("channelFormat", "&b[#{channel}] &8[{server}] &f{name}&7 : &f{message}");
+        CHAT_TYPING = b.comment("Avec ArcadiaChat : afficher aux autres joueurs du serveur qui est en train d'ecrire.")
+                .define("typingIndicator", true);
         b.pop();
 
         b.push("status");

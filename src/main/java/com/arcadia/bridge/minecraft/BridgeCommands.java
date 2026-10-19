@@ -1,9 +1,11 @@
 package com.arcadia.bridge.minecraft;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import com.arcadia.bridge.Bridge;
+import com.arcadia.bridge.chat.ChatChannels;
 import com.arcadia.bridge.chat.CrossServerChat;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.data.Models.PlayerRef;
@@ -85,6 +87,25 @@ public final class BridgeCommands {
                 .executes(ctx -> chatMode(ctx, null))
                 .then(Commands.literal("global").executes(ctx -> chatMode(ctx, true)))
                 .then(Commands.literal("local").executes(ctx -> chatMode(ctx, false))));
+
+        d.register(Commands.literal("sc")
+                .requires(src -> Permissions.has(src, Permissions.STAFF_CHAT))
+                .then(Commands.argument("message", StringArgumentType.greedyString())
+                        .executes(BridgeCommands::staffChat)));
+
+        d.register(Commands.literal("canal")
+                .then(Commands.literal("list").executes(BridgeCommands::channelList))
+                .then(Commands.literal("join").then(channelArgument(false).executes(BridgeCommands::channelJoin)))
+                .then(Commands.literal("leave").then(channelArgument(true).executes(BridgeCommands::channelLeave)))
+                .then(Commands.literal("say").then(channelArgument(true)
+                        .then(Commands.argument("message", StringArgumentType.greedyString())
+                                .executes(BridgeCommands::channelSay))))
+                .then(Commands.literal("create")
+                        .requires(src -> Permissions.has(src, Permissions.CHANNELS_MANAGE))
+                        .then(channelArgument(false).executes(BridgeCommands::channelCreate)))
+                .then(Commands.literal("delete")
+                        .requires(src -> Permissions.has(src, Permissions.CHANNELS_MANAGE))
+                        .then(channelArgument(false).executes(BridgeCommands::channelDelete))));
 
         d.register(staff("arcadia_bridge", Permissions.ADMIN)
                 .then(Commands.literal("status").executes(BridgeCommands::status))
@@ -248,6 +269,152 @@ public final class BridgeCommands {
     }
 
     /** /chat [global|local] : participer ou non au chat commun a tous les serveurs. */
+    // ---------------------------------------------------------------- chat staff et canaux
+
+    /** Nom de canal ; {@code mine} : suggere les canaux du joueur. */
+    private static RequiredArgumentBuilder<CommandSourceStack, String> channelArgument(boolean mine) {
+        return Commands.argument("channel", StringArgumentType.word())
+                .suggests((ctx, builder) -> {
+                    Bridge bridge = Bridge.get();
+                    ServerPlayer player = ctx.getSource().getPlayer();
+                    if (mine && bridge != null && player != null) {
+                        return SharedSuggestionProvider.suggest(bridge.channels().channelsOf(player.getUUID()), builder);
+                    }
+                    return builder.buildFuture();
+                });
+    }
+
+    private static int staffChat(CommandContext<CommandSourceStack> ctx) {
+        Bridge bridge = Bridge.get();
+        ServerPlayer player = ctx.getSource().getPlayer();
+        if (player == null) {
+            ctx.getSource().sendFailure(Lang.mc("cmd.players_only"));
+            return 0;
+        }
+        if (bridge == null || !ChatChannels.staffEnabled()) {
+            ctx.getSource().sendFailure(Lang.mc("cmd.staff.disabled"));
+            return 0;
+        }
+        bridge.channels().sendStaff(player, arg(ctx, "message"));
+        return 1;
+    }
+
+    /** Verifie que les canaux sont actifs et que le nom est valide ; renvoie le nom normalise ou null. */
+    private static String channelName(CommandContext<CommandSourceStack> ctx) {
+        Bridge bridge = Bridge.get();
+        if (bridge == null || bridge.repository() == null || !ChatChannels.channelsEnabled()) {
+            ctx.getSource().sendFailure(Lang.mc("cmd.channel.disabled"));
+            return null;
+        }
+        String name = ChatChannels.normalize(arg(ctx, "channel"));
+        if (!ChatChannels.isValidName(name)) {
+            ctx.getSource().sendFailure(Lang.mc("cmd.channel.invalid"));
+            return null;
+        }
+        return name;
+    }
+
+    private static int channelList(CommandContext<CommandSourceStack> ctx) {
+        Bridge bridge = Bridge.get();
+        CommandSourceStack source = ctx.getSource();
+        if (bridge == null || bridge.repository() == null || !ChatChannels.channelsEnabled()) {
+            source.sendFailure(Lang.mc("cmd.channel.disabled"));
+            return 0;
+        }
+        ServerPlayer player = source.getPlayer();
+        List<String> mine = player == null ? List.of() : bridge.channels().channelsOf(player.getUUID());
+        bridge.channels().list().whenComplete((all, error) -> bridge.runOnMain(() -> {
+            if (error != null) {
+                source.sendFailure(Lang.mc("common.error"));
+                return;
+            }
+            String none = Lang.get("cmd.channel.none");
+            source.sendSuccess(() -> Lang.mc("cmd.channel.list",
+                    "all", all.isEmpty() ? none : "#" + String.join(", #", all),
+                    "mine", mine.isEmpty() ? none : "#" + String.join(", #", mine)), false);
+        }));
+        return 1;
+    }
+
+    private static int channelJoin(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = ctx.getSource().getPlayer();
+        String name = channelName(ctx);
+        if (name == null) {
+            return 0;
+        }
+        if (player == null) {
+            ctx.getSource().sendFailure(Lang.mc("cmd.players_only"));
+            return 0;
+        }
+        Bridge bridge = Bridge.get();
+        reply(ctx, bridge.channels().join(player, name)
+                .thenApply(exists -> Lang.mc(exists ? "cmd.channel.joined" : "cmd.channel.unknown", "channel", name)));
+        return 1;
+    }
+
+    private static int channelLeave(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = ctx.getSource().getPlayer();
+        String name = channelName(ctx);
+        if (name == null) {
+            return 0;
+        }
+        if (player == null) {
+            ctx.getSource().sendFailure(Lang.mc("cmd.players_only"));
+            return 0;
+        }
+        reply(ctx, Bridge.get().channels().leave(player, name)
+                .thenApply(v -> Lang.mc("cmd.channel.left", "channel", name)));
+        return 1;
+    }
+
+    private static int channelSay(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = ctx.getSource().getPlayer();
+        String name = channelName(ctx);
+        if (name == null) {
+            return 0;
+        }
+        if (player == null) {
+            ctx.getSource().sendFailure(Lang.mc("cmd.players_only"));
+            return 0;
+        }
+        Bridge.get().channels().sendChannel(player, name, arg(ctx, "message"));
+        return 1;
+    }
+
+    private static int channelCreate(CommandContext<CommandSourceStack> ctx) {
+        String name = channelName(ctx);
+        if (name == null) {
+            return 0;
+        }
+        String by = ctx.getSource().getPlayer() == null ? "console" : ctx.getSource().getPlayer().getGameProfile().getName();
+        reply(ctx, Bridge.get().channels().create(name, by)
+                .thenApply(created -> Lang.mc(created ? "cmd.channel.created" : "cmd.channel.exists", "channel", name)));
+        return 1;
+    }
+
+    private static int channelDelete(CommandContext<CommandSourceStack> ctx) {
+        String name = channelName(ctx);
+        if (name == null) {
+            return 0;
+        }
+        reply(ctx, Bridge.get().channels().delete(name)
+                .thenApply(existed -> Lang.mc(existed ? "cmd.channel.deleted" : "cmd.channel.unknown", "channel", name)));
+        return 1;
+    }
+
+    /** Repond au joueur une fois l'operation en base terminee. */
+    private static void reply(CommandContext<CommandSourceStack> ctx, CompletableFuture<? extends Component> future) {
+        CommandSourceStack source = ctx.getSource();
+        future.whenComplete((message, error) -> Bridge.get().runOnMain(() -> {
+            if (error != null) {
+                LOGGER.error("[ArcadiaBridge] Commande /canal echouee", error);
+                source.sendFailure(Lang.mc("common.error"));
+            } else {
+                source.sendSuccess(() -> message, false);
+            }
+        }));
+    }
+
     private static int chatMode(CommandContext<CommandSourceStack> ctx, Boolean global) {
         CommandSourceStack source = ctx.getSource();
         Bridge bridge = Bridge.get();

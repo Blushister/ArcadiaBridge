@@ -31,6 +31,10 @@ public final class Permissions {
     public static final PermissionNode<Boolean> UNLINK = staff("command.unlink");
     public static final PermissionNode<Boolean> ADMIN = new PermissionNode<>(ArcadiaBridge.MOD_ID, "command.admin",
             PermissionTypes.BOOLEAN, (player, uuid, ctx) -> player != null && player.hasPermissions(3));
+    /** Chat du staff et alertes en jeu. */
+    public static final PermissionNode<Boolean> STAFF_CHAT = staff("chat.staff");
+    /** Creer et supprimer les canaux thematiques. */
+    public static final PermissionNode<Boolean> CHANNELS_MANAGE = staff("chat.channels.manage");
     /** Dispense de verification Discord (personne par defaut). */
     public static final PermissionNode<Boolean> VERIFICATION_BYPASS = new PermissionNode<>(ArcadiaBridge.MOD_ID,
             "verification.bypass", PermissionTypes.BOOLEAN, (player, uuid, ctx) -> false);
@@ -44,7 +48,7 @@ public final class Permissions {
     }
 
     public static void register(PermissionGatherEvent.Nodes event) {
-        event.addNodes(BAN, MUTE, WARN, HISTORY, UNLINK, ADMIN, VERIFICATION_BYPASS);
+        event.addNodes(BAN, MUTE, WARN, HISTORY, UNLINK, ADMIN, STAFF_CHAT, CHANNELS_MANAGE, VERIFICATION_BYPASS);
     }
 
     /**

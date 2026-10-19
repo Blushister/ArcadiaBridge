@@ -49,7 +49,8 @@ final class TestDatabase {
     static void dropTables(Database db, String prefix) throws SQLException {
         db.sync((Connection c) -> {
             try (Statement s = c.createStatement()) {
-                for (String table : new String[]{"sanctions", "codes", "links", "players"}) {
+                for (String table : new String[]{"sanctions", "codes", "links", "players", "reports", "chat", "servers",
+                        "channel_members", "channels"}) {
                     s.execute("DROP TABLE IF EXISTS " + prefix + table);
                 }
             }

@@ -80,6 +80,8 @@ public final class ReportService {
 
         return repo.addReport(draft).thenApply(report -> {
             notifyStaff(report, where);
+            bridge.channels().alert(Lang.get("alert.report", "id", report.id(), "target", report.targetName(),
+                    "reporter", report.reporterName(), "reason", report.reason()));
             LOGGER.info("[ArcadiaBridge] Signalement #{} : {} signale {} ({})", report.id(),
                     report.reporterName(), report.targetName(), report.reason());
             return report;

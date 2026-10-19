@@ -112,6 +112,40 @@ class ReportsAndChatTest {
     }
 
     @Test
+    @DisplayName("Chaque ligne relayee garde son canal (global, staff, canal thematique)")
+    void chatKeepsChannel() {
+        long before = repo.lastChatId().join();
+        repo.publishChat("test3", "Dev", "", "public").join();
+        repo.publishChat("test3", "Modo", "", "entre nous", "{\"text\":\"x\"}", "staff").join();
+        repo.publishChat("test3", "Dev", "", "je vends", "{\"text\":\"y\"}", "#commerce").join();
+
+        List<ChatLine> lines = repo.fetchChat(before, "test1").join();
+        assertEquals(List.of("global", "staff", "#commerce"), lines.stream().map(ChatLine::channel).toList());
+    }
+
+    @Test
+    @DisplayName("Canaux thematiques : creation, adhesion, depart et suppression")
+    void channelsLifecycle() {
+        UUID joueur = UUID.randomUUID();
+        assertTrue(repo.createChannel("commerce", "Modo").join());
+        assertFalse(repo.createChannel("commerce", "Modo").join(), "un canal n'est cree qu'une fois");
+        assertFalse(repo.joinChannel(joueur, "inexistant").join(), "on ne rejoint pas un canal inconnu");
+
+        assertTrue(repo.joinChannel(joueur, "commerce").join());
+        assertTrue(repo.joinChannel(joueur, "commerce").join(), "rejoindre deux fois est sans effet");
+        assertEquals(List.of("commerce"), repo.memberChannels(joueur).join());
+        assertTrue(repo.listChannels().join().contains("commerce"));
+
+        repo.leaveChannel(joueur, "commerce").join();
+        assertTrue(repo.memberChannels(joueur).join().isEmpty());
+
+        repo.joinChannel(joueur, "commerce").join();
+        assertTrue(repo.deleteChannel("commerce").join());
+        assertTrue(repo.memberChannels(joueur).join().isEmpty(), "les membres partent avec le canal");
+        assertFalse(repo.deleteChannel("commerce").join());
+    }
+
+    @Test
     @DisplayName("La ligne mise en forme (LPC) voyage avec le message")
     void chatCarriesFormattedLine() {
         long before = repo.lastChatId().join();

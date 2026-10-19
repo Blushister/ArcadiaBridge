@@ -79,6 +79,7 @@ public final class GameEvents {
         }
         bridge.verification().onJoin(player);
         bridge.crossChat().onJoin(player);
+        bridge.channels().onJoin(player);
         bridge.ipGuard().onJoin(player);
     }
 
@@ -90,6 +91,7 @@ public final class GameEvents {
         }
         bridge.verification().onLeave(player);
         bridge.crossChat().onLeave(player);
+        bridge.channels().onLeave(player);
         ChatTabs.onLogout(player);
         if (ANNOUNCED.remove(player.getUUID()) && BridgeConfig.STATUS_JOIN_LEAVE.get() && !bridge.isStopping()) {
             announce(bridge, player, "discord.status.leave", "name", player.getGameProfile().getName(),
@@ -147,6 +149,38 @@ public final class GameEvents {
                 "server", serverName.isBlank() ? "" : Text.forDiscord(serverName),
                 "message", message);
         bridge.discord().sendChat(line);
+    }
+
+    private static final Set<String> MSG_COMMANDS = Set.of("msg", "tell", "w");
+
+    /**
+     * /msg a un joueur qui n'est pas sur ce serveur mais connecte a un autre serveur Arcadia : le message lui
+     * est transmis par la base (Minecraft repondrait "aucun joueur trouve"). Apres le controle des mutes.
+     */
+    @SubscribeEvent(priority = EventPriority.LOW)
+    public static void onCrossServerMessage(CommandEvent event) {
+        Bridge bridge = Bridge.get();
+        ServerPlayer player = event.getParseResults().getContext().getSource().getPlayer();
+        if (bridge == null || player == null || bridge.repository() == null) {
+            return;
+        }
+        String input = event.getParseResults().getReader().getString().trim();
+        if (input.startsWith("/")) {
+            input = input.substring(1);
+        }
+        String[] parts = input.split(" ", 3);
+        if (parts.length < 3 || !MSG_COMMANDS.contains(parts[0].toLowerCase(Locale.ROOT))
+                || parts[1].startsWith("@") || parts[2].isBlank()) {
+            return;
+        }
+        if (bridge.server().getPlayerList().getPlayerByName(parts[1]) != null) {
+            return; // joueur sur ce serveur : /msg normal
+        }
+        String target = bridge.channels().remotePlayer(parts[1]);
+        if (target != null) {
+            event.setCanceled(true);
+            bridge.channels().sendPrivate(player, target, parts[2]);
+        }
     }
 
     /** Commandes de message privees interdites aux joueurs mutes (/msg, /tell, /me...). */

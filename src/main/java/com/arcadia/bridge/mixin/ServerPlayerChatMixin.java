@@ -3,6 +3,7 @@ package com.arcadia.bridge.mixin;
 import com.arcadia.bridge.tabs.ChatTabs;
 import com.arcadia.bridge.tabs.TabsProtocol;
 import net.minecraft.network.chat.ChatType;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.OutgoingChatMessage;
 import net.minecraft.server.level.ServerPlayer;
 import org.spongepowered.asm.mixin.Mixin;
@@ -35,7 +36,12 @@ public abstract class ServerPlayerChatMixin {
         boolean isPrivate = type.is(ChatType.MSG_COMMAND_INCOMING) || type.is(ChatType.MSG_COMMAND_OUTGOING)
                 || type.is(ChatType.TEAM_MSG_COMMAND_INCOMING) || type.is(ChatType.TEAM_MSG_COMMAND_OUTGOING);
         String channel = isPrivate ? TabsProtocol.CHANNEL_PRIVATE : TabsProtocol.CHANNEL_LOCAL;
-        if (ChatTabs.send(self, channel, "", boundType.decorate(message.content()))) {
+        // Correspondant : celui a qui on ecrit (message sortant), sinon celui qui ecrit.
+        String partner = "";
+        if (isPrivate) {
+            partner = boundType.targetName().map(Component::getString).orElse(boundType.name().getString());
+        }
+        if (ChatTabs.send(self, channel, partner, boundType.decorate(message.content()))) {
             ci.cancel();
         }
     }

@@ -100,6 +100,8 @@ public final class IpGuard {
     private void alert(String playerName, List<PlayerRef> banned) {
         String others = banned.stream().map(p -> MarkdownSanitizer.escape(p.name())).collect(Collectors.joining(", "));
         LOGGER.warn("[ArcadiaBridge] {} se connecte depuis la meme adresse que : {}", playerName, others);
+        bridge.channels().alert(Lang.get("alert.evasion", "name", playerName,
+                "others", banned.stream().map(PlayerRef::name).collect(Collectors.joining(", "))));
         if (!bridge.discord().isReady()) {
             return;
         }

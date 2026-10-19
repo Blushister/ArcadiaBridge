@@ -51,10 +51,15 @@ public final class CrossServerChat {
         return BridgeConfig.CHAT_CROSS_SERVER.get();
     }
 
+    /** Le relais par la base sert aussi au chat staff et aux canaux thematiques. */
+    public static boolean relayActive() {
+        return isEnabled() || ChatChannels.staffEnabled() || ChatChannels.channelsEnabled();
+    }
+
     /** Au demarrage, on part du dernier message connu : pas de rejeu de l'historique. */
     public void start() {
         Repository repo = bridge.repository();
-        if (repo == null || !isEnabled()) {
+        if (repo == null || !relayActive()) {
             return;
         }
         repo.lastChatId().thenAccept(id -> lastId = id).exceptionally(error -> {
@@ -115,7 +120,7 @@ public final class CrossServerChat {
     /** Releve les messages des autres serveurs et les affiche aux joueurs en mode global. */
     public void poll() {
         Repository repo = bridge.repository();
-        if (repo == null || !isEnabled() || lastId < 0 || !polling.compareAndSet(false, true)) {
+        if (repo == null || !relayActive() || lastId < 0 || !polling.compareAndSet(false, true)) {
             return;
         }
         repo.fetchChat(lastId, Bridge.serverId()).whenComplete((lines, error) -> {
@@ -126,12 +131,28 @@ public final class CrossServerChat {
             lastId = lines.get(lines.size() - 1).id();
             bridge.runOnMain(() -> {
                 HolderLookup.Provider registries = bridge.server().registryAccess();
-                List<Component> components = lines.stream().map(line -> format(line, registries)).toList();
+                // Chat staff, alertes et canaux : la ligne a ete mise en forme par le serveur d'origine.
+                for (ChatLine line : lines) {
+                    if (ChatChannels.TYPING.equals(line.channel())) {
+                        ChatTabs.remoteTyping(line.playerName(), "1".equals(line.message()));
+                    } else if (!TabsProtocol.CHANNEL_GLOBAL.equals(line.channel())) {
+                        Component component = parse(line.formatted(), registries);
+                        if (component != null) {
+                            bridge.channels().deliverRemote(line, component);
+                        }
+                    }
+                }
+                if (!isEnabled()) {
+                    return;
+                }
+                List<ChatLine> global = lines.stream()
+                        .filter(line -> TabsProtocol.CHANNEL_GLOBAL.equals(line.channel())).toList();
+                List<Component> components = global.stream().map(line -> format(line, registries)).toList();
                 for (ServerPlayer player : bridge.server().getPlayerList().getPlayers()) {
                     if (ChatTabs.supports(player)) {
                         // Avec ArcadiaChat, le joueur recoit tout : c'est son onglet qui filtre.
                         for (int i = 0; i < components.size(); i++) {
-                            ChatTabs.send(player, TabsProtocol.CHANNEL_GLOBAL, lines.get(i).serverId(), components.get(i));
+                            ChatTabs.send(player, TabsProtocol.CHANNEL_GLOBAL, global.get(i).serverId(), components.get(i));
                         }
                     } else if (isGlobal(player.getUUID())) {
                         components.forEach(player::sendSystemMessage);
@@ -142,7 +163,7 @@ public final class CrossServerChat {
     }
 
     private static Component format(ChatLine line, HolderLookup.Provider registries) {
-        Component formatted = fromJson(line.formatted(), registries);
+        Component formatted = parse(line.formatted(), registries);
         if (formatted != null) {
             String tag = Text.fill(Text.colorize(BridgeConfig.CHAT_CROSS_SERVER_TAG.get()),
                     "server", Text.stripFormatting(line.serverId()));
@@ -161,7 +182,7 @@ public final class CrossServerChat {
         return Component.literal(text);
     }
 
-    private static String toJson(Component line, HolderLookup.Provider registries) {
+    public static String toJson(Component line, HolderLookup.Provider registries) {
         try {
             String json = Component.Serializer.toJson(line, registries);
             return json.length() <= MAX_FORMATTED_JSON ? json : null;
@@ -175,7 +196,7 @@ public final class CrossServerChat {
      * Relit la ligne mise en forme par l'autre serveur. Seuls le texte et son apparence sont gardes :
      * aucun clic, survol ou insertion ne passe d'un serveur a l'autre.
      */
-    private static Component fromJson(String json, HolderLookup.Provider registries) {
+    public static Component parse(String json, HolderLookup.Provider registries) {
         if (json == null || json.isEmpty() || json.length() > MAX_FORMATTED_JSON) {
             return null;
         }

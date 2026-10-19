@@ -238,6 +238,20 @@ public final class Database implements AutoCloseable {
             addColumnIfMissing(c, t("players"), "ip_seen_at", "BIGINT NULL");
             addColumnIfMissing(c, t("players"), "chat_global", "TINYINT(1) NULL");
             addColumnIfMissing(c, t("chat"), "formatted", "TEXT NULL");
+            addColumnIfMissing(c, t("chat"), "channel", "VARCHAR(40) NOT NULL DEFAULT 'global'");
+            addColumnIfMissing(c, t("servers"), "address", "VARCHAR(128) NULL");
+            try (Statement s = c.createStatement()) {
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("channels") + " ("
+                        + "name VARCHAR(24) NOT NULL PRIMARY KEY,"
+                        + "created_by VARCHAR(16) NOT NULL,"
+                        + "created_at BIGINT NOT NULL)" + opts);
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("channel_members") + " ("
+                        + "uuid CHAR(36) NOT NULL,"
+                        + "channel VARCHAR(24) NOT NULL,"
+                        + "joined_at BIGINT NOT NULL,"
+                        + "PRIMARY KEY (uuid, channel),"
+                        + "INDEX idx_channel (channel))" + opts);
+            }
             try (Statement s = c.createStatement()) {
                 s.execute("CREATE INDEX idx_ip ON " + t("players") + " (ip_hash)");
             } catch (SQLException ignored) {
