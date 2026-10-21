@@ -291,13 +291,43 @@ public final class Repository {
         });
     }
 
-    public CompletableFuture<Void> purgeChat(long before) {
+    /**
+     * Efface le relais. Les canaux thematiques gardent leur historique plus longtemps ({@code channelsBefore}),
+     * pour le montrer a ceux qui les rejoignent ; tout le reste (chat global, prives, staff...) part a
+     * {@code before}.
+     */
+    public CompletableFuture<Void> purgeChat(long before, long channelsBefore) {
         return db.async(c -> {
-            try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + chat + " WHERE created_at < ?")) {
+            try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + chat
+                    + " WHERE created_at < ? AND (channel NOT LIKE '#%' OR created_at < ?)")) {
                 ps.setLong(1, before);
+                ps.setLong(2, channelsBefore);
                 ps.executeUpdate();
             }
             return null;
+        });
+    }
+
+    public CompletableFuture<Void> purgeChat(long before) {
+        return purgeChat(before, before);
+    }
+
+    /** Derniers messages d'un canal thematique, du plus ancien au plus recent. */
+    public CompletableFuture<List<ChatLine>> channelHistory(String channel, int limit) {
+        return db.async(c -> {
+            List<ChatLine> lines = new ArrayList<>();
+            try (PreparedStatement ps = c.prepareStatement("SELECT id, server_id, player_name, prefix, message, formatted,"
+                    + " channel FROM " + chat + " WHERE channel = ? ORDER BY id DESC LIMIT ?")) {
+                ps.setString(1, channel);
+                ps.setInt(2, limit);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        lines.add(0, new ChatLine(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4),
+                                rs.getString(5), rs.getString(6), rs.getString(7)));
+                    }
+                }
+            }
+            return lines;
         });
     }
 

@@ -241,6 +241,11 @@ public final class Database implements AutoCloseable {
             addColumnIfMissing(c, t("chat"), "channel", "VARCHAR(40) NOT NULL DEFAULT 'global'");
             addColumnIfMissing(c, t("servers"), "address", "VARCHAR(128) NULL");
             try (Statement s = c.createStatement()) {
+                s.execute("CREATE INDEX idx_channel ON " + t("chat") + " (channel, id)");
+            } catch (SQLException ignored) {
+                // L'index existe deja.
+            }
+            try (Statement s = c.createStatement()) {
                 s.execute("CREATE TABLE IF NOT EXISTS " + t("channels") + " ("
                         + "name VARCHAR(24) NOT NULL PRIMARY KEY,"
                         + "created_by VARCHAR(16) NOT NULL,"

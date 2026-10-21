@@ -150,5 +150,6 @@
   "cmd.channel.exists": "&eLe canal #{channel} existe déjà.",
   "cmd.channel.deleted": "&aCanal #{channel} supprimé.",
   "cmd.channel.list": "&6Canaux : &f{all}\n&7Tes canaux : &f{mine}",
-  "cmd.channel.none": "aucun"
+  "cmd.channel.none": "aucun",
+  "cmd.channel.history": "&8--- {count} derniers messages de #{channel} ---"
 }

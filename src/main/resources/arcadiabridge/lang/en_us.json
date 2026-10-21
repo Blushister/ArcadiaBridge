@@ -150,5 +150,6 @@
   "cmd.channel.exists": "&eChannel #{channel} already exists.",
   "cmd.channel.deleted": "&aChannel #{channel} deleted.",
   "cmd.channel.list": "&6Channels: &f{all}\n&7Your channels: &f{mine}",
-  "cmd.channel.none": "none"
+  "cmd.channel.none": "none",
+  "cmd.channel.history": "&8--- last {count} messages of #{channel} ---"
 }

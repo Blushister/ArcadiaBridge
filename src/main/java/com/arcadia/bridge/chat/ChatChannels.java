@@ -262,8 +262,35 @@ public final class ChatChannels {
             if (exists) {
                 memberships.computeIfAbsent(player.getUUID(), k -> ConcurrentHashMap.newKeySet()).add(channel);
                 bridge.runOnMain(() -> ChatTabs.sendChannels(player));
+                sendHistory(player, channel);
             }
             return exists;
+        });
+    }
+
+    /** Les derniers messages du canal, pour qui vient de le rejoindre (dans son onglet avec ArcadiaChat). */
+    private void sendHistory(ServerPlayer player, String channel) {
+        int limit = BridgeConfig.CHAT_CHANNEL_HISTORY.get();
+        if (limit <= 0) {
+            return;
+        }
+        String tag = TabsProtocol.CHANNEL_PREFIX + channel;
+        bridge.repository().channelHistory(tag, limit).thenAccept(lines -> bridge.runOnMain(() -> {
+            if (lines.isEmpty() || player.hasDisconnected()) {
+                return;
+            }
+            var registries = bridge.server().registryAccess();
+            ChatTabs.deliver(player, tag, Bridge.serverId(),
+                    Lang.mc("cmd.channel.history", "channel", channel, "count", lines.size()));
+            for (ChatLine line : lines) {
+                Component component = CrossServerChat.parse(line.formatted(), registries);
+                if (component != null) {
+                    ChatTabs.deliver(player, tag, line.serverId(), component);
+                }
+            }
+        })).exceptionally(error -> {
+            LOGGER.warn("[ArcadiaBridge] Historique de #{} illisible : {}", channel, error.toString());
+            return null;
         });
     }
 

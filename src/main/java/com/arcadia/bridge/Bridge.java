@@ -210,7 +210,8 @@ public final class Bridge {
             sanctions.refreshDiscordTimeouts(now);
             repository.purgeExpiredCodes(now);
             // Le chat inter-serveurs n'est qu'un relais : on ne garde pas d'historique en base.
-            repository.purgeChat(now - TimeUnit.MINUTES.toMillis(5));
+            repository.purgeChat(now - TimeUnit.MINUTES.toMillis(5),
+                    now - TimeUnit.DAYS.toMillis(BridgeConfig.CHAT_CHANNEL_HISTORY_DAYS.get()));
             ipGuard.purge();
         }
     }
