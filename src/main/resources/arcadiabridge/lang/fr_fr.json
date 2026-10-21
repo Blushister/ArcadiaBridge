@@ -151,5 +151,15 @@
   "cmd.channel.deleted": "&aCanal #{channel} supprimé.",
   "cmd.channel.list": "&6Canaux : &f{all}\n&7Tes canaux : &f{mine}",
   "cmd.channel.none": "aucun",
-  "cmd.channel.history": "&8--- {count} derniers messages de #{channel} ---"
+  "cmd.channel.history": "&8--- {count} derniers messages de #{channel} ---",
+  "cmd.channel.created_private": "&aCanal privé #{channel} créé. Ajoutes-y des joueurs avec /canal add {channel} <joueurs>",
+  "cmd.channel.private_join": "&cLe canal #{channel} est privé : seul le staff peut t'y ajouter.",
+  "cmd.channel.private_tag": "(privé)",
+  "cmd.channel.now_private": "&aLe canal #{channel} est maintenant privé.",
+  "cmd.channel.now_public": "&aLe canal #{channel} est maintenant public.",
+  "cmd.channel.added": "&a#{channel} : ajoutés : &f{added}&a. &7Introuvables : &f{unknown}",
+  "cmd.channel.kicked": "&a{name} a été retiré de #{channel}.",
+  "cmd.channel.members": "&6Membres de #{channel} ({count}) : &f{members}",
+  "cmd.channel.added_you": "&aTu as été ajouté au canal #{channel}.",
+  "cmd.channel.removed_you": "&eTu as été retiré du canal #{channel}."
 }

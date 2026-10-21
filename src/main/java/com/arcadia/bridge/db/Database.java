@@ -257,6 +257,8 @@ public final class Database implements AutoCloseable {
                         + "PRIMARY KEY (uuid, channel),"
                         + "INDEX idx_channel (channel))" + opts);
             }
+            // Apres la creation de la table des canaux : colonne ajoutee dans la version 1.2.
+            addColumnIfMissing(c, t("channels"), "is_private", "TINYINT(1) NOT NULL DEFAULT 0");
             try (Statement s = c.createStatement()) {
                 s.execute("CREATE INDEX idx_ip ON " + t("players") + " (ip_hash)");
             } catch (SQLException ignored) {

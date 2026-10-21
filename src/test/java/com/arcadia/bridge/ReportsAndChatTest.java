@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.arcadia.bridge.data.Models.ChatLine;
+import com.arcadia.bridge.data.Models.JoinResult;
 import com.arcadia.bridge.data.Models.PlayerRef;
 import com.arcadia.bridge.data.Models.Report;
 import com.arcadia.bridge.data.Models.Sanction;
@@ -143,6 +144,26 @@ class ReportsAndChatTest {
 
         repo.purgeChat(now + 1000, now + 1000).join();
         assertTrue(repo.channelHistory("#vente", 3).join().isEmpty(), "passe le delai, l'historique part aussi");
+    }
+
+    @Test
+    @DisplayName("Canal prive : on n'y entre que par un ajout du staff")
+    void privateChannel() {
+        UUID joueur = UUID.randomUUID();
+        UUID invite = UUID.randomUUID();
+        repo.upsertPlayer(invite, "Invite", "test1").join();
+        assertTrue(repo.createChannel("conseil", "Modo", true).join());
+
+        assertEquals(JoinResult.PRIVATE, repo.joinChannel(joueur, "conseil", false).join(), "adhesion libre refusee");
+        assertFalse(repo.joinChannel(joueur, "conseil").join());
+        assertEquals(JoinResult.JOINED, repo.joinChannel(invite, "conseil", true).join(), "ajout d'office accepte");
+        assertEquals(List.of("Invite"), repo.channelMembers("conseil").join());
+        assertTrue(repo.listChannelInfos().join().stream().anyMatch(c -> c.name().equals("conseil") && c.isPrivate()));
+
+        assertTrue(repo.setChannelPrivate("conseil", false).join());
+        assertEquals(JoinResult.JOINED, repo.joinChannel(joueur, "conseil", false).join(), "redevenu public");
+        assertFalse(repo.setChannelPrivate("inexistant", true).join());
+        repo.deleteChannel("conseil").join();
     }
 
     @Test

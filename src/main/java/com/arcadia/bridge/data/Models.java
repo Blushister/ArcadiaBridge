@@ -80,6 +80,15 @@ public final class Models {
                            String formatted, String channel) {
     }
 
+    /** Canal thematique ; prive : on n'y entre que si le staff vous y ajoute. */
+    public record ChannelInfo(String name, boolean isPrivate) {
+    }
+
+    /** Resultat d'une tentative pour rejoindre un canal. */
+    public enum JoinResult {
+        JOINED, UNKNOWN, PRIVATE
+    }
+
     public enum RedeemStatus {
         SUCCESS, INVALID_CODE, ACCOUNT_ALREADY_LINKED, DISCORD_ALREADY_LINKED
     }

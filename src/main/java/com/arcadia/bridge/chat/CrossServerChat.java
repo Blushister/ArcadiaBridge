@@ -135,6 +135,8 @@ public final class CrossServerChat {
                 for (ChatLine line : lines) {
                     if (ChatChannels.TYPING.equals(line.channel())) {
                         ChatTabs.remoteTyping(line.playerName(), "1".equals(line.message()));
+                    } else if (ChatChannels.MEMBERSHIP.equals(line.channel())) {
+                        bridge.channels().onMembershipEvent(line.message());
                     } else if (!TabsProtocol.CHANNEL_GLOBAL.equals(line.channel())) {
                         Component component = parse(line.formatted(), registries);
                         if (component != null) {

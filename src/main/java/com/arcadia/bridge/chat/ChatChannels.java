@@ -12,7 +12,10 @@ import java.util.regex.Pattern;
 
 import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.config.BridgeConfig;
+import com.arcadia.bridge.data.Models.ChannelInfo;
 import com.arcadia.bridge.data.Models.ChatLine;
+import com.arcadia.bridge.data.Models.JoinResult;
+import com.arcadia.bridge.data.Models.PlayerRef;
 import com.arcadia.bridge.data.Models.ServerStatus;
 import com.arcadia.bridge.data.Repository;
 import com.arcadia.bridge.i18n.Lang;
@@ -39,6 +42,11 @@ public final class ChatChannels {
     private static final Pattern NAME = Pattern.compile("[a-z0-9_-]{2,24}");
     /** Canal interne du relais : "est en train d'ecrire" dans le chat global. */
     public static final String TYPING = "typing";
+    /**
+     * Canal interne du relais : un joueur a ete ajoute a un canal ou retire ("uuid|canal|1" ou "uuid|canal|0"),
+     * ou un canal a ete supprime ("*|canal|0"). Les autres serveurs rechargent alors les canaux concernes.
+     */
+    public static final String MEMBERSHIP = "membership";
     /** Prefixe interne du relais pour un message prive : "@pseudo" (en minuscules). */
     public static final String PRIVATE_PREFIX = "@";
     /** Un message toutes les 500 ms au plus par joueur : ces chats ne passent pas par l'anti-spam du jeu. */
@@ -90,10 +98,16 @@ public final class ChatChannels {
         if (repo == null || !channelsEnabled()) {
             return;
         }
+        reloadMemberships(player);
+    }
+
+    /** Relit en base les canaux d'un joueur connecte ici, et met a jour ses onglets. */
+    private CompletableFuture<Void> reloadMemberships(ServerPlayer player) {
         UUID uuid = player.getUUID();
-        repo.memberChannels(uuid).thenAccept(list -> {
-            memberships.put(uuid, ConcurrentHashMap.newKeySet());
-            memberships.get(uuid).addAll(list);
+        return bridge.repository().memberChannels(uuid).thenAccept(list -> {
+            Set<String> set = ConcurrentHashMap.newKeySet();
+            set.addAll(list);
+            memberships.put(uuid, set);
             bridge.runOnMain(() -> ChatTabs.sendChannels(player));
         }).exceptionally(error -> {
             LOGGER.warn("[ArcadiaBridge] Canaux de {} illisibles : {}", player.getGameProfile().getName(), error.toString());
@@ -257,14 +271,80 @@ public final class ChatChannels {
 
     // ---------------------------------------------------------------- gestion des canaux (/canal)
 
-    public CompletableFuture<Boolean> join(ServerPlayer player, String channel) {
-        return bridge.repository().joinChannel(player.getUUID(), channel).thenApply(exists -> {
-            if (exists) {
+    /** Le joueur rejoint un canal public (un canal prive le refuse). */
+    public CompletableFuture<JoinResult> join(ServerPlayer player, String channel) {
+        return bridge.repository().joinChannel(player.getUUID(), channel, false).thenApply(result -> {
+            if (result == JoinResult.JOINED) {
                 memberships.computeIfAbsent(player.getUUID(), k -> ConcurrentHashMap.newKeySet()).add(channel);
                 bridge.runOnMain(() -> ChatTabs.sendChannels(player));
                 sendHistory(player, channel);
             }
-            return exists;
+            return result;
+        });
+    }
+
+    /**
+     * Ajout d'office par le staff, y compris dans un canal prive. Le joueur est prevenu s'il est connecte,
+     * sur ce serveur ou sur un autre.
+     */
+    public CompletableFuture<JoinResult> add(PlayerRef target, String channel) {
+        return bridge.repository().joinChannel(target.uuid(), channel, true).thenApply(result -> {
+            if (result == JoinResult.JOINED) {
+                announceMembership(target.uuid().toString(), channel, true);
+            }
+            return result;
+        });
+    }
+
+    /** Retrait par le staff. */
+    public CompletableFuture<Void> kick(PlayerRef target, String channel) {
+        return bridge.repository().leaveChannel(target.uuid(), channel)
+                .thenRun(() -> announceMembership(target.uuid().toString(), channel, false));
+    }
+
+    public CompletableFuture<List<String>> members(String channel) {
+        return bridge.repository().channelMembers(channel);
+    }
+
+    /** @return false si le canal n'existe pas */
+    public CompletableFuture<Boolean> setPrivate(String channel, boolean isPrivate) {
+        return bridge.repository().setChannelPrivate(channel, isPrivate);
+    }
+
+    /** Applique un changement de membres ici, et le transmet aux autres serveurs. */
+    private void announceMembership(String who, String channel, boolean added) {
+        String event = who + "|" + channel + "|" + (added ? "1" : "0");
+        onMembershipEvent(event);
+        Repository repo = bridge.repository();
+        if (repo != null) {
+            repo.publishChat(Bridge.serverId(), "", "", event, null, MEMBERSHIP);
+        }
+    }
+
+    /** Changement de membres (de ce serveur ou d'un autre) : on recharge les joueurs concernes connectes ici. */
+    public void onMembershipEvent(String event) {
+        String[] parts = event.split("\\|");
+        if (parts.length != 3) {
+            return;
+        }
+        String channel = parts[1];
+        boolean added = "1".equals(parts[2]);
+        bridge.runOnMain(() -> {
+            for (ServerPlayer player : bridge.server().getPlayerList().getPlayers()) {
+                if (!"*".equals(parts[0]) && !player.getUUID().toString().equals(parts[0])) {
+                    continue;
+                }
+                reloadMemberships(player).thenRun(() -> {
+                    if ("*".equals(parts[0])) {
+                        return;
+                    }
+                    bridge.runOnMain(() -> player.sendSystemMessage(
+                            Lang.mc(added ? "cmd.channel.added_you" : "cmd.channel.removed_you", "channel", channel)));
+                    if (added) {
+                        sendHistory(player, channel);
+                    }
+                });
+            }
         });
     }
 
@@ -304,20 +384,20 @@ public final class ChatChannels {
         });
     }
 
-    public CompletableFuture<Boolean> create(String channel, String createdBy) {
-        return bridge.repository().createChannel(channel, createdBy);
+    public CompletableFuture<Boolean> create(String channel, String createdBy, boolean isPrivate) {
+        return bridge.repository().createChannel(channel, createdBy, isPrivate);
     }
 
-    /** Supprime le canal ; les membres connectes ici le perdent tout de suite, les autres a leur reconnexion. */
+    /** Supprime le canal ; ses membres le perdent tout de suite, sur tous les serveurs. */
     public CompletableFuture<Boolean> delete(String channel) {
         return bridge.repository().deleteChannel(channel).thenApply(existed -> {
             memberships.values().forEach(set -> set.remove(channel));
-            bridge.runOnMain(() -> bridge.server().getPlayerList().getPlayers().forEach(ChatTabs::sendChannels));
+            announceMembership("*", channel, false);
             return existed;
         });
     }
 
-    public CompletableFuture<List<String>> list() {
-        return bridge.repository().listChannels();
+    public CompletableFuture<List<ChannelInfo>> list() {
+        return bridge.repository().listChannelInfos();
     }
 }

@@ -16,7 +16,9 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import com.arcadia.bridge.data.Models.Link;
+import com.arcadia.bridge.data.Models.ChannelInfo;
 import com.arcadia.bridge.data.Models.ChatLine;
+import com.arcadia.bridge.data.Models.JoinResult;
 import com.arcadia.bridge.data.Models.PlayerRef;
 import com.arcadia.bridge.data.Models.Report;
 import com.arcadia.bridge.data.Models.RedeemResult;
@@ -811,28 +813,72 @@ public final class Repository {
     // ---------------------------------------------------------------- canaux thematiques
 
     public CompletableFuture<List<String>> listChannels() {
+        return listChannelInfos().thenApply(list -> list.stream().map(ChannelInfo::name).toList());
+    }
+
+    public CompletableFuture<List<ChannelInfo>> listChannelInfos() {
         return db.async(c -> {
-            List<String> names = new ArrayList<>();
+            List<ChannelInfo> list = new ArrayList<>();
             try (Statement s = c.createStatement();
-                 ResultSet rs = s.executeQuery("SELECT name FROM " + channels + " ORDER BY name")) {
+                 ResultSet rs = s.executeQuery("SELECT name, is_private FROM " + channels + " ORDER BY name")) {
                 while (rs.next()) {
-                    names.add(rs.getString(1));
+                    list.add(new ChannelInfo(rs.getString(1), rs.getBoolean(2)));
                 }
             }
-            return names;
+            return list;
         });
     }
 
     /** @return false si le canal existe deja */
     public CompletableFuture<Boolean> createChannel(String name, String createdBy) {
+        return createChannel(name, createdBy, false);
+    }
+
+    /** @return false si le canal existe deja */
+    public CompletableFuture<Boolean> createChannel(String name, String createdBy, boolean isPrivate) {
         return db.async(c -> {
             try (PreparedStatement ps = c.prepareStatement("INSERT IGNORE INTO " + channels
-                    + " (name, created_by, created_at) VALUES (?, ?, ?)")) {
+                    + " (name, created_by, created_at, is_private) VALUES (?, ?, ?, ?)")) {
                 ps.setString(1, name);
                 ps.setString(2, createdBy);
                 ps.setLong(3, System.currentTimeMillis());
+                ps.setBoolean(4, isPrivate);
                 return ps.executeUpdate() == 1;
             }
+        });
+    }
+
+    /** @return false si le canal n'existe pas */
+    public CompletableFuture<Boolean> setChannelPrivate(String name, boolean isPrivate) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("UPDATE " + channels + " SET is_private = ? WHERE name = ?")) {
+                ps.setBoolean(1, isPrivate);
+                ps.setString(2, name);
+                ps.executeUpdate();
+            }
+            try (PreparedStatement ps = c.prepareStatement("SELECT 1 FROM " + channels + " WHERE name = ?")) {
+                ps.setString(1, name);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next();
+                }
+            }
+        });
+    }
+
+    /** Membres d'un canal (pseudos connus, sinon UUID). */
+    public CompletableFuture<List<String>> channelMembers(String name) {
+        return db.async(c -> {
+            List<String> names = new ArrayList<>();
+            try (PreparedStatement ps = c.prepareStatement("SELECT COALESCE(p.name, m.uuid) FROM " + channelMembers
+                    + " m LEFT JOIN " + players + " p ON p.uuid = m.uuid WHERE m.channel = ? ORDER BY 1")) {
+                ps.setString(1, name);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        names.add(rs.getString(1));
+                    }
+                }
+            }
+            return names;
         });
     }
 
@@ -866,22 +912,39 @@ public final class Repository {
         });
     }
 
-    /** @return false si le canal n'existe pas */
+    /** Rejoindre un canal public. @return false si le canal n'existe pas ou s'il est prive */
     public CompletableFuture<Boolean> joinChannel(UUID uuid, String name) {
+        return joinChannel(uuid, name, false).thenApply(result -> result == JoinResult.JOINED);
+    }
+
+    /**
+     * Ajoute un joueur a un canal. {@code force} : ajout par le staff, possible aussi pour un canal prive.
+     */
+    public CompletableFuture<JoinResult> joinChannel(UUID uuid, String name, boolean force) {
         return db.async(c -> {
-            try (PreparedStatement ps = c.prepareStatement("INSERT IGNORE INTO " + channelMembers
-                    + " (uuid, channel, joined_at) SELECT ?, name, ? FROM " + channels + " WHERE name = ?")) {
-                ps.setString(1, uuid.toString());
-                ps.setLong(2, System.currentTimeMillis());
-                ps.setString(3, name);
-                ps.executeUpdate();
-            }
-            try (PreparedStatement ps = c.prepareStatement("SELECT 1 FROM " + channels + " WHERE name = ?")) {
+            Boolean isPrivate = null;
+            try (PreparedStatement ps = c.prepareStatement("SELECT is_private FROM " + channels + " WHERE name = ?")) {
                 ps.setString(1, name);
                 try (ResultSet rs = ps.executeQuery()) {
-                    return rs.next();
+                    if (rs.next()) {
+                        isPrivate = rs.getBoolean(1);
+                    }
                 }
             }
+            if (isPrivate == null) {
+                return JoinResult.UNKNOWN;
+            }
+            if (isPrivate && !force) {
+                return JoinResult.PRIVATE;
+            }
+            try (PreparedStatement ps = c.prepareStatement("INSERT IGNORE INTO " + channelMembers
+                    + " (uuid, channel, joined_at) VALUES (?, ?, ?)")) {
+                ps.setString(1, uuid.toString());
+                ps.setString(2, name);
+                ps.setLong(3, System.currentTimeMillis());
+                ps.executeUpdate();
+            }
+            return JoinResult.JOINED;
         });
     }
 

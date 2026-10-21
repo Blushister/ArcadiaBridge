@@ -1,6 +1,10 @@
 package com.arcadia.bridge.minecraft;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
@@ -8,6 +12,7 @@ import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.chat.ChatChannels;
 import com.arcadia.bridge.chat.CrossServerChat;
 import com.arcadia.bridge.config.BridgeConfig;
+import com.arcadia.bridge.data.Models.JoinResult;
 import com.arcadia.bridge.data.Models.PlayerRef;
 import com.arcadia.bridge.data.Models.Sanction;
 import com.arcadia.bridge.data.Models.SanctionType;
@@ -102,10 +107,26 @@ public final class BridgeCommands {
                                 .executes(BridgeCommands::channelSay))))
                 .then(Commands.literal("create")
                         .requires(src -> Permissions.has(src, Permissions.CHANNELS_MANAGE))
-                        .then(channelArgument(false).executes(BridgeCommands::channelCreate)))
+                        .then(channelArgument(false).executes(ctx -> channelCreate(ctx, false))
+                                .then(visibilityArgument().executes(ctx -> channelCreate(ctx, isPrivateArg(ctx))))))
                 .then(Commands.literal("delete")
                         .requires(src -> Permissions.has(src, Permissions.CHANNELS_MANAGE))
-                        .then(channelArgument(false).executes(BridgeCommands::channelDelete))));
+                        .then(channelArgument(false).executes(BridgeCommands::channelDelete)))
+                .then(Commands.literal("mode")
+                        .requires(src -> Permissions.has(src, Permissions.CHANNELS_MANAGE))
+                        .then(channelArgument(false).then(visibilityArgument().executes(BridgeCommands::channelMode))))
+                .then(Commands.literal("add")
+                        .requires(src -> Permissions.has(src, Permissions.CHANNELS_MANAGE))
+                        .then(channelArgument(false).then(Commands.argument("players", StringArgumentType.greedyString())
+                                .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(
+                                        ctx.getSource().getOnlinePlayerNames(), builder))
+                                .executes(BridgeCommands::channelAdd))))
+                .then(Commands.literal("kick")
+                        .requires(src -> Permissions.has(src, Permissions.CHANNELS_MANAGE))
+                        .then(channelArgument(false).then(player().executes(BridgeCommands::channelKick))))
+                .then(Commands.literal("members")
+                        .requires(src -> Permissions.has(src, Permissions.CHANNELS_MANAGE))
+                        .then(channelArgument(false).executes(BridgeCommands::channelMembers))));
 
         d.register(staff("arcadia_bridge", Permissions.ADMIN)
                 .then(Commands.literal("status").executes(BridgeCommands::status))
@@ -323,16 +344,105 @@ public final class BridgeCommands {
         }
         ServerPlayer player = source.getPlayer();
         List<String> mine = player == null ? List.of() : bridge.channels().channelsOf(player.getUUID());
-        bridge.channels().list().whenComplete((all, error) -> bridge.runOnMain(() -> {
+        boolean manager = Permissions.has(source, Permissions.CHANNELS_MANAGE);
+        bridge.channels().list().whenComplete((infos, error) -> bridge.runOnMain(() -> {
             if (error != null) {
                 source.sendFailure(Lang.mc("common.error"));
                 return;
             }
+            String tag = Lang.get("cmd.channel.private_tag");
+            List<String> visible = infos.stream()
+                    .filter(info -> !info.isPrivate() || manager || mine.contains(info.name()))
+                    .map(info -> "#" + info.name() + (info.isPrivate() ? " " + tag : ""))
+                    .toList();
             String none = Lang.get("cmd.channel.none");
             source.sendSuccess(() -> Lang.mc("cmd.channel.list",
-                    "all", all.isEmpty() ? none : "#" + String.join(", #", all),
+                    "all", visible.isEmpty() ? none : String.join(", ", visible),
                     "mine", mine.isEmpty() ? none : "#" + String.join(", #", mine)), false);
         }));
+        return 1;
+    }
+
+    /** "public" ou "prive" (prive, privé, private acceptes). */
+    private static RequiredArgumentBuilder<CommandSourceStack, String> visibilityArgument() {
+        return Commands.argument("visibility", StringArgumentType.word())
+                .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(List.of("public", "prive"), builder));
+    }
+
+    private static boolean isPrivateArg(CommandContext<CommandSourceStack> ctx) {
+        String value = arg(ctx, "visibility").toLowerCase(Locale.ROOT);
+        return value.startsWith("priv");
+    }
+
+    private static int channelMode(CommandContext<CommandSourceStack> ctx) {
+        String name = channelName(ctx);
+        if (name == null) {
+            return 0;
+        }
+        boolean isPrivate = isPrivateArg(ctx);
+        reply(ctx, Bridge.get().channels().setPrivate(name, isPrivate)
+                .thenApply(exists -> exists
+                        ? Lang.mc(isPrivate ? "cmd.channel.now_private" : "cmd.channel.now_public", "channel", name)
+                        : Lang.mc("cmd.channel.unknown", "channel", name)));
+        return 1;
+    }
+
+    /** Ajoute d'office un ou plusieurs joueurs (separes par des espaces ou des virgules). */
+    private static int channelAdd(CommandContext<CommandSourceStack> ctx) {
+        String name = channelName(ctx);
+        if (name == null) {
+            return 0;
+        }
+        Bridge bridge = Bridge.get();
+        List<String> names = Arrays.stream(arg(ctx, "players").split("[\\s,]+"))
+                .filter(s -> !s.isBlank()).distinct().limit(50).toList();
+        List<String> added = Collections.synchronizedList(new ArrayList<>());
+        List<String> unknown = Collections.synchronizedList(new ArrayList<>());
+        CompletableFuture<?>[] steps = names.stream().map(n -> bridge.resolvePlayer(n).thenCompose(ref -> {
+            if (ref == null) {
+                unknown.add(n);
+                return CompletableFuture.completedFuture(null);
+            }
+            return bridge.channels().add(ref, name).thenAccept(result -> {
+                if (result == JoinResult.JOINED) {
+                    added.add(ref.name());
+                }
+            });
+        })).toArray(CompletableFuture[]::new);
+        reply(ctx, CompletableFuture.allOf(steps).thenCompose(v -> bridge.repository().listChannels()).thenApply(all -> {
+            if (!all.contains(name)) {
+                return Lang.mc("cmd.channel.unknown", "channel", name);
+            }
+            String none = Lang.get("cmd.channel.none");
+            return Lang.mc("cmd.channel.added", "channel", name,
+                    "added", added.isEmpty() ? none : String.join(", ", added),
+                    "unknown", unknown.isEmpty() ? none : String.join(", ", unknown));
+        }));
+        return 1;
+    }
+
+    private static int channelKick(CommandContext<CommandSourceStack> ctx) {
+        String name = channelName(ctx);
+        if (name == null) {
+            return 0;
+        }
+        Bridge bridge = Bridge.get();
+        String target = arg(ctx, "player");
+        reply(ctx, bridge.resolvePlayer(target).thenCompose(ref -> ref == null
+                ? CompletableFuture.completedFuture((Component) Lang.mc("cmd.player_unknown", "name", target))
+                : bridge.channels().kick(ref, name)
+                        .thenApply(v -> (Component) Lang.mc("cmd.channel.kicked", "name", ref.name(), "channel", name))));
+        return 1;
+    }
+
+    private static int channelMembers(CommandContext<CommandSourceStack> ctx) {
+        String name = channelName(ctx);
+        if (name == null) {
+            return 0;
+        }
+        reply(ctx, Bridge.get().channels().members(name).thenApply(list -> Lang.mc("cmd.channel.members",
+                "channel", name, "count", list.size(),
+                "members", list.isEmpty() ? Lang.get("cmd.channel.none") : String.join(", ", list))));
         return 1;
     }
 
@@ -347,8 +457,11 @@ public final class BridgeCommands {
             return 0;
         }
         Bridge bridge = Bridge.get();
-        reply(ctx, bridge.channels().join(player, name)
-                .thenApply(exists -> Lang.mc(exists ? "cmd.channel.joined" : "cmd.channel.unknown", "channel", name)));
+        reply(ctx, bridge.channels().join(player, name).thenApply(result -> Lang.mc(switch (result) {
+            case JOINED -> "cmd.channel.joined";
+            case PRIVATE -> "cmd.channel.private_join";
+            case UNKNOWN -> "cmd.channel.unknown";
+        }, "channel", name)));
         return 1;
     }
 
@@ -381,14 +494,15 @@ public final class BridgeCommands {
         return 1;
     }
 
-    private static int channelCreate(CommandContext<CommandSourceStack> ctx) {
+    private static int channelCreate(CommandContext<CommandSourceStack> ctx, boolean isPrivate) {
         String name = channelName(ctx);
         if (name == null) {
             return 0;
         }
         String by = ctx.getSource().getPlayer() == null ? "console" : ctx.getSource().getPlayer().getGameProfile().getName();
-        reply(ctx, Bridge.get().channels().create(name, by)
-                .thenApply(created -> Lang.mc(created ? "cmd.channel.created" : "cmd.channel.exists", "channel", name)));
+        reply(ctx, Bridge.get().channels().create(name, by, isPrivate)
+                .thenApply(created -> Lang.mc(!created ? "cmd.channel.exists"
+                        : isPrivate ? "cmd.channel.created_private" : "cmd.channel.created", "channel", name)));
         return 1;
     }
 
