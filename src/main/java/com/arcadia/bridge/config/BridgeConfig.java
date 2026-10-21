@@ -59,7 +59,7 @@ public final class BridgeConfig {
     public static final ModConfigSpec.BooleanValue CHAT_CHANNELS;
     public static final ModConfigSpec.ConfigValue<String> CHAT_CHANNEL_FORMAT;
     public static final ModConfigSpec.IntValue CHAT_CHANNEL_HISTORY;
-    public static final ModConfigSpec.IntValue CHAT_CHANNEL_HISTORY_DAYS;
+    public static final ModConfigSpec.IntValue CHAT_CHANNEL_HISTORY_HOURS;
     public static final ModConfigSpec.BooleanValue CHAT_TYPING;
     public static final ModConfigSpec.BooleanValue CHAT_CROSS_SERVER_DEFAULT;
     public static final ModConfigSpec.IntValue CHAT_CROSS_SERVER_POLL;
@@ -211,8 +211,8 @@ public final class BridgeConfig {
                 .define("channelFormat", "&b[#{channel}] &8[{server}] &f{name}&7 : &f{message}");
         CHAT_CHANNEL_HISTORY = b.comment("Nombre de messages recents montres a qui rejoint un canal (0 = aucun).")
                 .defineInRange("channelHistory", 20, 0, 100);
-        CHAT_CHANNEL_HISTORY_DAYS = b.comment("Duree de conservation de l'historique des canaux, en jours.")
-                .defineInRange("channelHistoryDays", 7, 1, 90);
+        CHAT_CHANNEL_HISTORY_HOURS = b.comment("Duree de conservation de l'historique des canaux, en heures.")
+                .defineInRange("channelHistoryHours", 2, 1, 720);
         CHAT_TYPING = b.comment("Avec ArcadiaChat : afficher aux autres joueurs du serveur qui est en train d'ecrire.")
                 .define("typingIndicator", true);
         b.pop();

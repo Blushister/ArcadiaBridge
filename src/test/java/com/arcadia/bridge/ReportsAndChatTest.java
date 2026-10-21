@@ -131,9 +131,9 @@ class ReportsAndChatTest {
         }
         repo.publishChat("test3", "Dev", "", "public", "{\"text\":\"x\"}", "global").join();
 
-        // Purge du relais (tout ce qui est plus vieux que "dans une seconde"), canaux gardes 7 jours.
+        // Purge du relais (tout ce qui est plus vieux que "dans une seconde"), canaux gardes 2 heures.
         long now = System.currentTimeMillis();
-        repo.purgeChat(now + 1000, now - 7L * 24 * 3600 * 1000).join();
+        repo.purgeChat(now + 1000, now - 2L * 3600 * 1000).join();
 
         List<ChatLine> history = repo.channelHistory("#vente", 3).join();
         assertEquals(List.of("offre 3", "offre 4", "offre 5"), history.stream().map(ChatLine::message).toList(),
