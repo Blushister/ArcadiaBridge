@@ -188,4 +188,42 @@ public final class TabsProtocol {
             return TYPE;
         }
     }
+
+    /** Client -> serveur : demande la liste des canaux (ecran Canaux d'ArcadiaChat). */
+    public record ChannelsRequest() implements CustomPacketPayload {
+        public static final ChannelsRequest INSTANCE = new ChannelsRequest();
+        public static final Type<ChannelsRequest> TYPE = new Type<>(id("channels_request"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ChannelsRequest> STREAM_CODEC = StreamCodec.unit(INSTANCE);
+
+        @Override
+        public Type<ChannelsRequest> type() {
+            return TYPE;
+        }
+    }
+
+    /** Un canal tel que le joueur le voit : prive ou non, et s'il en est membre. */
+    public record ChannelEntry(String name, boolean isPrivate, boolean member) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, ChannelEntry> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, ChannelEntry::name,
+                ByteBufCodecs.BOOL, ChannelEntry::isPrivate,
+                ByteBufCodecs.BOOL, ChannelEntry::member,
+                ChannelEntry::new);
+    }
+
+    /**
+     * Serveur -> client : les canaux visibles par le joueur (publics, et prives dont il est membre ; tous pour
+     * le staff), et s'il peut les gerer (creer, ajouter des joueurs, supprimer).
+     */
+    public record ChannelDirectory(List<ChannelEntry> channels, boolean manager) implements CustomPacketPayload {
+        public static final Type<ChannelDirectory> TYPE = new Type<>(id("channel_directory"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ChannelDirectory> STREAM_CODEC = StreamCodec.composite(
+                ChannelEntry.STREAM_CODEC.apply(ByteBufCodecs.list()), ChannelDirectory::channels,
+                ByteBufCodecs.BOOL, ChannelDirectory::manager,
+                ChannelDirectory::new);
+
+        @Override
+        public Type<ChannelDirectory> type() {
+            return TYPE;
+        }
+    }
 }

@@ -11,6 +11,7 @@ import com.arcadia.bridge.chat.ChatChannels;
 import com.arcadia.bridge.chat.CrossServerChat;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.data.Models.ServerStatus;
+import com.arcadia.bridge.permission.Permissions;
 import com.arcadia.bridge.util.Text;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -51,6 +52,10 @@ public final class ChatTabs {
         registrar.playToServer(TabsProtocol.Scope.TYPE, TabsProtocol.Scope.STREAM_CODEC, ChatTabs::onScope);
         registrar.playToServer(TabsProtocol.Send.TYPE, TabsProtocol.Send.STREAM_CODEC, ChatTabs::onSend);
         registrar.playToServer(TabsProtocol.Typing.TYPE, TabsProtocol.Typing.STREAM_CODEC, ChatTabs::onTyping);
+        registrar.playToClient(TabsProtocol.ChannelDirectory.TYPE, TabsProtocol.ChannelDirectory.STREAM_CODEC,
+                (payload, context) -> { });
+        registrar.playToServer(TabsProtocol.ChannelsRequest.TYPE, TabsProtocol.ChannelsRequest.STREAM_CODEC,
+                ChatTabs::onChannelsRequest);
     }
 
     /**
@@ -164,6 +169,31 @@ public final class ChatTabs {
         } else if (payload.channel().startsWith(TabsProtocol.CHANNEL_PREFIX)) {
             bridge.channels().sendChannel(player, ChatChannels.normalize(payload.channel()), text);
         }
+    }
+
+    /**
+     * Ecran Canaux d'ArcadiaChat : les canaux que le joueur peut voir (publics, prives dont il est membre ;
+     * tous pour le staff), et s'il peut les gerer.
+     */
+    private static void onChannelsRequest(TabsProtocol.ChannelsRequest payload, IPayloadContext context) {
+        Bridge bridge = Bridge.get();
+        if (bridge == null || bridge.repository() == null || !ChatChannels.channelsEnabled()
+                || !(context.player() instanceof ServerPlayer player)) {
+            return;
+        }
+        boolean manager = Permissions.has(player, Permissions.CHANNELS_MANAGE);
+        List<String> mine = bridge.channels().channelsOf(player.getUUID());
+        bridge.channels().list().thenAccept(infos -> {
+            List<TabsProtocol.ChannelEntry> entries = infos.stream()
+                    .filter(info -> !info.isPrivate() || manager || mine.contains(info.name()))
+                    .map(info -> new TabsProtocol.ChannelEntry(info.name(), info.isPrivate(), mine.contains(info.name())))
+                    .toList();
+            bridge.runOnMain(() -> {
+                if (!player.hasDisconnected()) {
+                    PacketDistributor.sendToPlayer(player, new TabsProtocol.ChannelDirectory(entries, manager));
+                }
+            });
+        });
     }
 
     /** "Est en train d'ecrire" : relaye aux autres joueurs du serveur equipes d'ArcadiaChat. */
