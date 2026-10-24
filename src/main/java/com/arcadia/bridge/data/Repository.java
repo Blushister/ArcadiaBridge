@@ -20,6 +20,7 @@ import com.arcadia.bridge.data.Models.ChannelInfo;
 import com.arcadia.bridge.data.Models.ChatLine;
 import com.arcadia.bridge.data.Models.JoinResult;
 import com.arcadia.bridge.data.Models.Mail;
+import com.arcadia.bridge.data.Models.Share;
 import com.arcadia.bridge.data.Models.PlayerRef;
 import com.arcadia.bridge.data.Models.Report;
 import com.arcadia.bridge.data.Models.RedeemResult;
@@ -43,6 +44,7 @@ public final class Repository {
     private final String channels;
     private final String channelMembers;
     private final String mail;
+    private final String shares;
 
     public Repository(Database db) {
         this.db = db;
@@ -56,6 +58,7 @@ public final class Repository {
         this.channels = db.t("channels");
         this.channelMembers = db.t("channel_members");
         this.mail = db.t("mail");
+        this.shares = db.t("shares");
     }
 
     // ---------------------------------------------------------------- etat des serveurs
@@ -814,6 +817,47 @@ public final class Repository {
         }
     }
 
+
+    // ---------------------------------------------------------------- partages du chat
+
+    public CompletableFuture<Void> saveShare(String id, String owner, String kind, String data) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + shares
+                    + " (id, owner, kind, data, created_at) VALUES (?, ?, ?, ?, ?)")) {
+                ps.setString(1, id);
+                ps.setString(2, owner);
+                ps.setString(3, kind);
+                ps.setString(4, data);
+                ps.setLong(5, System.currentTimeMillis());
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    /** Partage encore valide, ou null. */
+    public CompletableFuture<Share> loadShare(String id) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("SELECT id, owner, kind, data, created_at FROM " + shares
+                    + " WHERE id = ?")) {
+                ps.setString(1, id);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() ? new Share(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
+                            rs.getLong(5)) : null;
+                }
+            }
+        });
+    }
+
+    public CompletableFuture<Void> purgeShares(long before) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + shares + " WHERE created_at < ?")) {
+                ps.setLong(1, before);
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
 
     // ---------------------------------------------------------------- messages hors ligne
 

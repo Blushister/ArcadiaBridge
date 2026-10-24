@@ -61,6 +61,7 @@ public final class BridgeConfig {
     public static final ModConfigSpec.IntValue CHAT_CHANNEL_HISTORY;
     public static final ModConfigSpec.IntValue CHAT_CHANNEL_HISTORY_HOURS;
     public static final ModConfigSpec.BooleanValue CHAT_TYPING;
+    public static final ModConfigSpec.BooleanValue CHAT_SHARES;
     public static final ModConfigSpec.BooleanValue CHAT_OFFLINE_MESSAGES;
     public static final ModConfigSpec.IntValue CHAT_OFFLINE_MAX;
     public static final ModConfigSpec.IntValue CHAT_OFFLINE_DAYS;
@@ -219,6 +220,10 @@ public final class BridgeConfig {
                 .defineInRange("channelHistoryHours", 2, 1, 720);
         CHAT_TYPING = b.comment("Avec ArcadiaChat : afficher aux autres joueurs du serveur qui est en train d'ecrire.")
                 .define("typingIndicator", true);
+        CHAT_SHARES = b.comment(
+                        "Partage dans le chat : [item] (objet en main), [inv] (inventaire), [ender] (coffre de l'Ender),",
+                        "[pos] (position). Aussi [objet], [inventaire], [position].")
+                .define("shares", true);
         CHAT_OFFLINE_MESSAGES = b.comment(
                         "/msg a un joueur hors ligne (deja venu sur le reseau) : le message lui est remis a sa prochaine",
                         "connexion, sur n'importe quel serveur.")

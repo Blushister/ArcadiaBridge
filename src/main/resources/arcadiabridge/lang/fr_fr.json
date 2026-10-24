@@ -166,5 +166,22 @@
   "mail.full": "&c{name} a déjà trop de messages en attente : réessaie plus tard.",
   "mail.header": "&6📬 {count} message(s) reçu(s) pendant ton absence :",
   "mail.date": " &8[{date}, {server}]",
-  "mail.discord": "📬 **{name}** t'a laissé un message sur Arcadia ({server}) :\n> {message}\nTu le retrouveras en jeu à ta prochaine connexion."
+  "mail.discord": "📬 **{name}** t'a laissé un message sur Arcadia ({server}) :\n> {message}\nTu le retrouveras en jeu à ta prochaine connexion.",
+  "share.empty_hand": "&7[main vide]",
+  "share.empty_hand.discord": "[main vide]",
+  "share.inventory": "&6[Inventaire de {name}]",
+  "share.ender": "&5[Coffre de l'Ender de {name}]",
+  "share.inventory.discord": "[inventaire de {name}]",
+  "share.ender.discord": "[coffre de l'Ender de {name}]",
+  "share.inventory.title": "Inventaire de {name}",
+  "share.ender.title": "Coffre de l'Ender de {name}",
+  "share.view.hover": "&7Cliquer pour voir (lecture seule, 30 min)",
+  "share.unavailable": "&7[partage indisponible]",
+  "share.expired": "&cCe partage a expiré (30 minutes).",
+  "share.position": "&a[Position : {dimension} {coords}]",
+  "share.position.discord": "[position : {dimension} {coords}]",
+  "share.position.hover": "&7Cliquer pour ajouter un point de repère",
+  "share.position.waypoint": "Position partagée {coords}",
+  "share.position.other_server": "&eCette position est sur le serveur {server} : {coords}",
+  "share.position.coords": "&aPosition : {dimension} {coords}"
 }

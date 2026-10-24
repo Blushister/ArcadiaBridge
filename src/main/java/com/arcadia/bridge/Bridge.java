@@ -213,6 +213,8 @@ public final class Bridge {
             repository.purgeChat(now - TimeUnit.MINUTES.toMillis(5),
                     now - TimeUnit.HOURS.toMillis(BridgeConfig.CHAT_CHANNEL_HISTORY_HOURS.get()));
             ipGuard.purge();
+            repository.purgeMail(now - TimeUnit.DAYS.toMillis(BridgeConfig.CHAT_OFFLINE_DAYS.get()));
+            repository.purgeShares(now - TimeUnit.MINUTES.toMillis(30));
         }
     }
 

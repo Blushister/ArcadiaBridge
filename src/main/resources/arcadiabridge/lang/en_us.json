@@ -166,5 +166,22 @@
   "mail.full": "&c{name} already has too many pending messages: try again later.",
   "mail.header": "&6📬 {count} message(s) received while you were away:",
   "mail.date": " &8[{date}, {server}]",
-  "mail.discord": "📬 **{name}** left you a message on Arcadia ({server}):\n> {message}\nYou will find it in game next time you join."
+  "mail.discord": "📬 **{name}** left you a message on Arcadia ({server}):\n> {message}\nYou will find it in game next time you join.",
+  "share.empty_hand": "&7[empty hand]",
+  "share.empty_hand.discord": "[empty hand]",
+  "share.inventory": "&6[{name}'s inventory]",
+  "share.ender": "&5[{name}'s ender chest]",
+  "share.inventory.discord": "[{name}'s inventory]",
+  "share.ender.discord": "[{name}'s ender chest]",
+  "share.inventory.title": "{name}'s inventory",
+  "share.ender.title": "{name}'s ender chest",
+  "share.view.hover": "&7Click to view (read only, 30 min)",
+  "share.unavailable": "&7[share unavailable]",
+  "share.expired": "&cThis share has expired (30 minutes).",
+  "share.position": "&a[Position: {dimension} {coords}]",
+  "share.position.discord": "[position: {dimension} {coords}]",
+  "share.position.hover": "&7Click to add a waypoint",
+  "share.position.waypoint": "Shared position {coords}",
+  "share.position.other_server": "&eThis position is on server {server}: {coords}",
+  "share.position.coords": "&aPosition: {dimension} {coords}"
 }

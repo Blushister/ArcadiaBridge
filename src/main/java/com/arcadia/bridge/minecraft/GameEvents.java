@@ -15,6 +15,8 @@ import com.arcadia.bridge.discord.DiscordLogs;
 import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.permission.Permissions;
 import com.arcadia.bridge.sanction.SanctionService;
+import com.arcadia.bridge.share.ShareCommands;
+import com.arcadia.bridge.share.Shares;
 import com.arcadia.bridge.tabs.ChatTabs;
 import com.arcadia.bridge.util.Text;
 import com.mojang.brigadier.context.ParsedCommandNode;
@@ -43,6 +45,7 @@ public final class GameEvents {
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         BridgeCommands.register(event.getDispatcher());
+        ShareCommands.register(event.getDispatcher());
     }
 
     @SubscribeEvent
@@ -111,6 +114,13 @@ public final class GameEvents {
      * bloque par un autre mod (zone protegee, saisie en cours...) : on ne le relaie pas. Avec LPC,
      * l'annulation est la norme, puisque LPC a deja diffuse le message lui-meme : on le relaie.
      */
+    /** Sans mod de mise en forme, le message diffuse est celui de l'evenement : on y met les partages. */
+    @SubscribeEvent(priority = EventPriority.HIGH)
+    public static void onChatShares(ServerChatEvent event) {
+        if (!ChatFormatterCompat.rebroadcastsChat() && Shares.hasToken(event.getRawText())) {
+            event.setMessage(Shares.apply(event.getMessage(), event.getPlayer()));
+        }
+    }
 
     @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
     public static void onChatRelay(ServerChatEvent event) {
@@ -125,18 +135,19 @@ public final class GameEvents {
             String prefixOnly = BridgeConfig.CHAT_LUCKPERMS_PREFIX.get()
                     ? LuckPermsHook.prefix(event.getPlayer().getUUID()) : "";
             bridge.crossChat().publish(event.getPlayer(), prefixOnly, event.getRawText(),
-                    ChatFormatterCompat.format(event.getPlayer(), event.getMessage()));
+                    ChatFormatterCompat.format(event.getPlayer(), event.getMessage())
+                            .map(line -> Shares.apply(line, event.getPlayer())));
             return;
         }
         ServerPlayer player = event.getPlayer();
         String rawPrefix = BridgeConfig.CHAT_LUCKPERMS_PREFIX.get() ? LuckPermsHook.prefix(player.getUUID()) : "";
         String prefix = Text.forDiscord(rawPrefix);
         String name = Text.forDiscord(player.getGameProfile().getName());
-        String message = Text.forDiscord(event.getRawText());
+        String message = Text.forDiscord(Shares.forDiscord(event.getRawText(), player));
 
         // Les autres serveurs recoivent le message ; leur propre salon Discord s'en charge de leur cote.
         bridge.crossChat().publish(player, rawPrefix, event.getRawText(),
-                ChatFormatterCompat.format(player, event.getMessage()));
+                ChatFormatterCompat.format(player, event.getMessage()).map(line -> Shares.apply(line, player)));
 
         if (ChatWebhook.isConfigured()) {
             // Avec un webhook, le pseudo et la tete du joueur portent l'information : pas de mise en forme.

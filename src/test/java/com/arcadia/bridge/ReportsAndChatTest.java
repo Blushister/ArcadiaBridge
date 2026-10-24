@@ -149,6 +149,15 @@ class ReportsAndChatTest {
     @Test
 
     @Test
+    @DisplayName("Partage d'inventaire : enregistre, relu, puis purge")
+    void shareStorage() {
+        repo.saveShare("abcdefgh2345", "Dev", "inv", "{items:[]}").join();
+        assertEquals("Dev", repo.loadShare("abcdefgh2345").join().owner());
+        repo.purgeShares(System.currentTimeMillis() + 1000).join();
+        assertEquals(null, repo.loadShare("abcdefgh2345").join());
+    }
+
+    @Test
     @DisplayName("Messages hors ligne : depot, boite limitee, remise unique et purge")
     void offlineMail() {
         UUID absent = UUID.randomUUID();

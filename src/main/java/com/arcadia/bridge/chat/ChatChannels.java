@@ -26,6 +26,7 @@ import com.arcadia.bridge.data.Repository;
 import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.minecraft.ChatGuard;
 import com.arcadia.bridge.permission.Permissions;
+import com.arcadia.bridge.share.Shares;
 import com.arcadia.bridge.tabs.ChatTabs;
 import com.arcadia.bridge.tabs.TabsProtocol;
 import com.arcadia.bridge.util.Text;
@@ -137,6 +138,7 @@ public final class ChatChannels {
                 "server", Text.stripFormatting(serverName()),
                 "name", name,
                 "message", Text.forMinecraft(text, BridgeConfig.CHAT_MAX_LENGTH.get())));
+        line = Shares.apply(line, sender);
         LOGGER.info("[Staff] {} : {}", name, Text.stripFormatting(text));
         deliverLocal(TabsProtocol.CHANNEL_STAFF, Bridge.serverId(), name, line, this::isStaff);
         publish(name, text, line, TabsProtocol.CHANNEL_STAFF);
@@ -161,6 +163,7 @@ public final class ChatChannels {
                 "server", Text.stripFormatting(serverName()),
                 "name", name,
                 "message", Text.forMinecraft(text, BridgeConfig.CHAT_MAX_LENGTH.get())));
+        line = Shares.apply(line, sender);
         String tag = TabsProtocol.CHANNEL_PREFIX + channel;
         deliverLocal(tag, Bridge.serverId(), name, line, p -> isMember(p.getUUID(), channel));
         publish(name, text, line, tag);
