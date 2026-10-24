@@ -169,6 +169,10 @@ public final class CrossServerChat {
                     }
                 }
             });
+            // Lot complet : d'autres lignes attendent, on les lit sans attendre le prochain passage.
+            if (lines.size() >= Repository.CHAT_FETCH_LIMIT) {
+                poll();
+            }
         });
     }
 

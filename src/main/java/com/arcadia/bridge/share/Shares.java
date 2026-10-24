@@ -59,6 +59,16 @@ public final class Shares {
 
     private static final Map<UUID, Computed> RECENT = new ConcurrentHashMap<>();
 
+    /** Un inventaire repartage peu apres renvoie vers la meme copie, sans en refaire une en base. */
+    private static final long CONTAINER_REUSE_MS = 15_000;
+    /** Au-dela (objets moddes aux donnees enormes), l'inventaire n'est pas partage. */
+    private static final int MAX_SNAPSHOT_CHARS = 1_000_000;
+
+    private record SharedContainer(String id, boolean ender, long at) {
+    }
+
+    private static final Map<UUID, SharedContainer> LAST_CONTAINER = new ConcurrentHashMap<>();
+
     private Shares() {
     }
 
@@ -173,6 +183,39 @@ public final class Shares {
     }
 
     // ---------------------------------------------------------------- [inv] et [ender]
+
+    private static void container(ServerPlayer player, Kind kind, Map<Kind, Component> chat, Map<Kind, String> discord) {
+        String name = player.getGameProfile().getName();
+        boolean ender = kind == Kind.ENDER;
+        discord.put(kind, Lang.get(ender ? "share.ender.discord" : "share.inventory.discord", "name", name));
+        Repository repo = Bridge.get() == null ? null : Bridge.get().repository();
+        if (repo == null) {
+            chat.put(kind, Lang.mc("share.unavailable"));
+            return;
+        }
+        long now = System.currentTimeMillis();
+        SharedContainer last = LAST_CONTAINER.get(player.getUUID());
+        String id;
+        if (last != null && last.ender() == ender && now - last.at() < CONTAINER_REUSE_MS) {
+            id = last.id();
+        } else {
+            String data = snapshot(player, ender);
+            if (data.length() > MAX_SNAPSHOT_CHARS) {
+                chat.put(kind, Lang.mc("share.unavailable"));
+                return;
+            }
+            id = newId();
+            repo.saveShare(id, name, ender ? "ender" : "inv", data).exceptionally(error -> {
+                LOGGER.warn("[ArcadiaBridge] Partage d'inventaire non enregistre : {}", error.toString());
+                return null;
+            });
+            LAST_CONTAINER.put(player.getUUID(), new SharedContainer(id, ender, now));
+            LAST_CONTAINER.values().removeIf(c -> now - c.at() > CONTAINER_REUSE_MS);
+        }
+        chat.put(kind, Lang.mc(ender ? "share.ender" : "share.inventory", "name", name).withStyle(style -> style
+                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Lang.mc("share.view.hover")))
+                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/partage voir " + id))));
+    }
 
     /** Contenu copie (inventaire : objets, armure, seconde main ; coffre de l'Ender) en SNBT. */
     private static String snapshot(ServerPlayer player, boolean ender) {

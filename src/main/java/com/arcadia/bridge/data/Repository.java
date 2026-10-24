@@ -249,12 +249,14 @@ public final class Repository {
     }
 
     /** Messages des autres serveurs posterieurs a un identifiant donne. */
+    /** Lignes du relais lues par passage. */
+    public static final int CHAT_FETCH_LIMIT = 50;
 
     public CompletableFuture<List<ChatLine>> fetchChat(long afterId, String excludeServerId) {
         return db.async(c -> {
             List<ChatLine> lines = new ArrayList<>();
             try (PreparedStatement ps = c.prepareStatement("SELECT id, server_id, player_name, prefix, message, formatted, channel FROM "
-                    + chat + " WHERE id > ? AND server_id <> ? ORDER BY id LIMIT 50")) {
+                    + chat + " WHERE id > ? AND server_id <> ? ORDER BY id LIMIT " + CHAT_FETCH_LIMIT)) {
                 ps.setLong(1, afterId);
                 ps.setString(2, excludeServerId);
                 try (ResultSet rs = ps.executeQuery()) {

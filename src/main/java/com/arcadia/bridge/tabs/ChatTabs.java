@@ -33,6 +33,15 @@ public final class ChatTabs {
     /** Dernier "est en train d'ecrire" relaye, par joueur : limite le debit. */
     private static final Map<UUID, Long> TYPING_SENT = new ConcurrentHashMap<>();
     private static final long TYPING_MIN_INTERVAL_MS = 1000;
+    /** Ecran Canaux (requete en base) : une demande par seconde au plus par joueur. */
+    private static final Map<UUID, Long> DB_REQUEST = new ConcurrentHashMap<>();
+    private static final long DB_REQUEST_MIN_INTERVAL_MS = 1000;
+
+    private static boolean throttled(ServerPlayer player) {
+        long now = System.currentTimeMillis();
+        Long last = DB_REQUEST.put(player.getUUID(), now);
+        return last != null && now - last < DB_REQUEST_MIN_INTERVAL_MS;
+    }
 
     /** Auteur du message d'equipe FTB Teams en cours de diffusion (thread principal), ou null. */
     private static String teamSender;
@@ -188,6 +197,8 @@ public final class ChatTabs {
 
     public static void onLogout(ServerPlayer player) {
         READY.remove(player.getUUID());
+        REACTED.remove(player.getUUID());
+        DB_REQUEST.remove(player.getUUID());
         if (TYPING_SENT.remove(player.getUUID()) != null) {
             broadcastTyping(player, false);
             Bridge bridge = Bridge.get();
@@ -280,7 +291,7 @@ public final class ChatTabs {
     private static void onChannelsRequest(TabsProtocol.ChannelsRequest payload, IPayloadContext context) {
         Bridge bridge = Bridge.get();
         if (bridge == null || bridge.repository() == null || !ChatChannels.channelsEnabled()
-                || !(context.player() instanceof ServerPlayer player)) {
+                || !(context.player() instanceof ServerPlayer player) || throttled(player)) {
             return;
         }
         boolean manager = Permissions.has(player, Permissions.CHANNELS_MANAGE);
