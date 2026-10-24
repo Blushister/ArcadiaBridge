@@ -250,4 +250,38 @@ public final class TabsProtocol {
             return TYPE;
         }
     }
+
+    /**
+     * Client -> serveur : reaction a un message ({@code key} : empreinte du message calculee par le client,
+     * {@code emoji} : "like", "laugh", "love", "wow" ou "sad" ; {@code add} : ajout ou retrait).
+     */
+    public record React(String key, String emoji, boolean add) implements CustomPacketPayload {
+        public static final Type<React> TYPE = new Type<>(id("react"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, React> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.stringUtf8(64), React::key,
+                ByteBufCodecs.stringUtf8(16), React::emoji,
+                ByteBufCodecs.BOOL, React::add,
+                React::new);
+
+        @Override
+        public Type<React> type() {
+            return TYPE;
+        }
+    }
+
+    /** Serveur -> client : un joueur (de n'importe quel serveur) a reagi a un message, ou a retire sa reaction. */
+    public record Reaction(String key, String emoji, String reactor, boolean add) implements CustomPacketPayload {
+        public static final Type<Reaction> TYPE = new Type<>(id("reaction"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, Reaction> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, Reaction::key,
+                ByteBufCodecs.STRING_UTF8, Reaction::emoji,
+                ByteBufCodecs.STRING_UTF8, Reaction::reactor,
+                ByteBufCodecs.BOOL, Reaction::add,
+                Reaction::new);
+
+        @Override
+        public Type<Reaction> type() {
+            return TYPE;
+        }
+    }
 }

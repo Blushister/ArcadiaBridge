@@ -299,6 +299,15 @@ public final class ChatChannels {
             return null;
         });
     }
+
+    /** Canal interne du relais : reaction a un message ("empreinte|emoji|1" ou "...|0"). */
+    public static final String REACTION = "reaction";
+
+    public void publishReaction(String key, String emoji, String reactor, boolean add) {
+        Repository repo = bridge.repository();
+        if (repo != null) {
+            repo.publishChat(Bridge.serverId(), reactor, "", key + "|" + emoji + "|" + (add ? "1" : "0"), null, REACTION);
+        }
     }
 
     public void publishTyping(String name, boolean typing) {

@@ -82,6 +82,10 @@ public final class ChatTabs {
         registrar.playToServer(TabsProtocol.Scope.TYPE, TabsProtocol.Scope.STREAM_CODEC, ChatTabs::onScope);
         registrar.playToServer(TabsProtocol.Send.TYPE, TabsProtocol.Send.STREAM_CODEC, ChatTabs::onSend);
         registrar.playToServer(TabsProtocol.Typing.TYPE, TabsProtocol.Typing.STREAM_CODEC, ChatTabs::onTyping);
+        registrar.playToClient(TabsProtocol.Reaction.TYPE, TabsProtocol.Reaction.STREAM_CODEC, (payload, context) -> { });
+        registrar.playToServer(TabsProtocol.React.TYPE, TabsProtocol.React.STREAM_CODEC, ChatTabs::onReact);
+        registrar.playToClient(TabsProtocol.RemotePlayers.TYPE, TabsProtocol.RemotePlayers.STREAM_CODEC,
+                (payload, context) -> { });
         registrar.playToClient(TabsProtocol.ChannelDirectory.TYPE, TabsProtocol.ChannelDirectory.STREAM_CODEC,
                 (payload, context) -> { });
         registrar.playToServer(TabsProtocol.ChannelsRequest.TYPE, TabsProtocol.ChannelsRequest.STREAM_CODEC,
@@ -293,6 +297,41 @@ public final class ChatTabs {
             });
         });
     }
+
+    /** Reactions possibles (le client choisit l'apparence : emoji Emojiful ou symbole). */
+    private static final Set<String> EMOJIS = Set.of("like", "laugh", "love", "wow", "sad");
+    private static final Map<UUID, Long> REACTED = new ConcurrentHashMap<>();
+    private static final long REACT_MIN_INTERVAL_MS = 300;
+
+    /** Un joueur reagit a un message : relaye a tous les joueurs equipes d'ArcadiaChat, sur tous les serveurs. */
+    private static void onReact(TabsProtocol.React payload, IPayloadContext context) {
+        Bridge bridge = Bridge.get();
+        if (bridge == null || !(context.player() instanceof ServerPlayer player) || !EMOJIS.contains(payload.emoji())
+                || payload.key().isBlank() || !payload.key().matches("[0-9a-f]{8,64}")) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        Long last = REACTED.put(player.getUUID(), now);
+        if (last != null && now - last < REACT_MIN_INTERVAL_MS) {
+            return;
+        }
+        String name = player.getGameProfile().getName();
+        deliverReaction(payload.key(), payload.emoji(), name, payload.add());
+        bridge.channels().publishReaction(payload.key(), payload.emoji(), name, payload.add());
+    }
+
+    /** Reaction (de ce serveur ou d'un autre) envoyee aux joueurs d'ici equipes d'ArcadiaChat. */
+    public static void deliverReaction(String key, String emoji, String reactor, boolean add) {
+        Bridge bridge = Bridge.get();
+        if (bridge == null || !EMOJIS.contains(emoji)) {
+            return;
+        }
+        var payload = new TabsProtocol.Reaction(key, emoji, reactor, add);
+        for (ServerPlayer player : bridge.server().getPlayerList().getPlayers()) {
+            if (supports(player)) {
+                PacketDistributor.sendToPlayer(player, payload);
+            }
+        }
     }
 
     /** "Est en train d'ecrire" : relaye aux autres joueurs du serveur equipes d'ArcadiaChat. */
