@@ -35,6 +35,8 @@ public final class ChatTabs {
 
     /** Derniere liste de serveurs envoyee aux clients. */
     private static volatile List<TabsProtocol.ServerInfo> servers = List.of();
+    /** Joueurs connectes aux autres serveurs, envoyes aux clients pour la completion des pseudos. */
+    private static volatile List<String> remotePlayers = List.of();
 
     private ChatTabs() {
     }
@@ -71,17 +73,63 @@ public final class ChatTabs {
      *
      * @return false si le joueur n'a pas le mod : l'appelant envoie alors le message habituel
      */
-    public static boolean send(ServerPlayer player, String channel, String origin, Component message) {
+    public static boolean send(ServerPlayer player, String channel, String origin, String sender, Component message) {
         if (!supports(player)) {
             return false;
         }
-        PacketDistributor.sendToPlayer(player, new TabsProtocol.Line(channel, origin, message));
+        PacketDistributor.sendToPlayer(player, new TabsProtocol.Line(channel, origin, sender == null ? "" : sender, message));
         return true;
     }
 
+    /** Derniere ligne analysee par {@link #senderOf} : LPC envoie la meme ligne a chaque joueur, une a une. */
+    private static Component lastLine;
+    private static String lastSender = "";
+
+    /**
+     * Auteur d'une ligne de chat deja mise en forme (LPC ne le transmet pas) : le joueur connecte dont le pseudo
+     * apparait avant le premier ":" (le plus long s'il y en a plusieurs), ou vide. Calcule une fois par ligne.
+     */
+    public static String senderOf(ServerPlayer anyPlayer, Component line) {
+        return senderOf(anyPlayer.server, line);
+    }
+
+    public static String senderOf(net.minecraft.server.MinecraftServer server, Component line) {
+        if (line == lastLine) {
+            return lastSender;
+        }
+        String text = line.getString();
+        int colon = text.indexOf(':');
+        String head = colon < 0 ? text : text.substring(0, colon);
+        String found = "";
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            String name = player.getGameProfile().getName();
+            if (name.length() > found.length() && containsWord(head, name)) {
+                found = name;
+            }
+        }
+        lastLine = line;
+        lastSender = found;
+        return found;
+    }
+
+    /** {@code word} present dans {@code text}, sans lettre, chiffre ni "_" colle de part et d'autre. */
+    private static boolean containsWord(String text, String word) {
+        for (int i = text.indexOf(word); i >= 0; i = text.indexOf(word, i + 1)) {
+            int end = i + word.length();
+            if ((i == 0 || !isNameChar(text.charAt(i - 1))) && (end == text.length() || !isNameChar(text.charAt(end)))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isNameChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_';
+    }
+
     /** Envoie une ligne a un joueur : etiquetee s'il a ArcadiaChat, en message systeme sinon. */
-    public static void deliver(ServerPlayer player, String channel, String origin, Component message) {
-        if (!send(player, channel, origin, message)) {
+    public static void deliver(ServerPlayer player, String channel, String origin, String sender, Component message) {
+        if (!send(player, channel, origin, sender, message)) {
             player.sendSystemMessage(message);
         }
     }
@@ -102,6 +150,7 @@ public final class ChatTabs {
                 crossServer && bridge.crossChat().isGlobal(player.getUUID()),
                 bridge.channels().isStaff(player), BridgeConfig.CHAT_TYPING.get()));
         PacketDistributor.sendToPlayer(player, new TabsProtocol.Servers(servers));
+        PacketDistributor.sendToPlayer(player, new TabsProtocol.RemotePlayers(remotePlayers));
         sendChannels(player);
     }
 
@@ -142,6 +191,25 @@ public final class ChatTabs {
         for (ServerPlayer player : bridge.server().getPlayerList().getPlayers()) {
             if (supports(player)) {
                 PacketDistributor.sendToPlayer(player, new TabsProtocol.Servers(list));
+            }
+        }
+    }
+
+    /** Joueurs des autres serveurs, mis a jour a chaque synchronisation ; envoyes seulement s'ils changent. */
+    public static void updateRemotePlayers(List<String> names) {
+        List<String> sorted = names.stream().sorted(String.CASE_INSENSITIVE_ORDER).toList();
+        if (sorted.equals(remotePlayers)) {
+            return;
+        }
+        remotePlayers = sorted;
+        Bridge bridge = Bridge.get();
+        if (bridge == null) {
+            return;
+        }
+        var payload = new TabsProtocol.RemotePlayers(sorted);
+        for (ServerPlayer player : bridge.server().getPlayerList().getPlayers()) {
+            if (supports(player)) {
+                PacketDistributor.sendToPlayer(player, payload);
             }
         }
     }
@@ -194,6 +262,7 @@ public final class ChatTabs {
                 }
             });
         });
+    }
     }
 
     /** "Est en train d'ecrire" : relaye aux autres joueurs du serveur equipes d'ArcadiaChat. */

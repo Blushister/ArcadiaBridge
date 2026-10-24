@@ -161,5 +161,10 @@
   "cmd.channel.kicked": "&a{name} a été retiré de #{channel}.",
   "cmd.channel.members": "&6Membres de #{channel} ({count}) : &f{members}",
   "cmd.channel.added_you": "&aTu as été ajouté au canal #{channel}.",
-  "cmd.channel.removed_you": "&eTu as été retiré du canal #{channel}."
+  "cmd.channel.removed_you": "&eTu as été retiré du canal #{channel}.",
+  "mail.offline_tag": " &8(hors ligne : il le recevra à sa connexion)",
+  "mail.full": "&c{name} a déjà trop de messages en attente : réessaie plus tard.",
+  "mail.header": "&6📬 {count} message(s) reçu(s) pendant ton absence :",
+  "mail.date": " &8[{date}, {server}]",
+  "mail.discord": "📬 **{name}** t'a laissé un message sur Arcadia ({server}) :\n> {message}\nTu le retrouveras en jeu à ta prochaine connexion."
 }

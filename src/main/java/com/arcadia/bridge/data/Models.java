@@ -80,6 +80,11 @@ public final class Models {
                            String formatted, String channel) {
     }
 
+
+    /** Message prive laisse a un joueur hors ligne. */
+    public record Mail(long id, String fromName, String fromServer, String message, long createdAt) {
+    }
+
     /** Canal thematique ; prive : on n'y entre que si le staff vous y ajoute. */
     public record ChannelInfo(String name, boolean isPrivate) {
     }

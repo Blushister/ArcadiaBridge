@@ -61,6 +61,10 @@ public final class BridgeConfig {
     public static final ModConfigSpec.IntValue CHAT_CHANNEL_HISTORY;
     public static final ModConfigSpec.IntValue CHAT_CHANNEL_HISTORY_HOURS;
     public static final ModConfigSpec.BooleanValue CHAT_TYPING;
+    public static final ModConfigSpec.BooleanValue CHAT_OFFLINE_MESSAGES;
+    public static final ModConfigSpec.IntValue CHAT_OFFLINE_MAX;
+    public static final ModConfigSpec.IntValue CHAT_OFFLINE_DAYS;
+    public static final ModConfigSpec.BooleanValue CHAT_OFFLINE_DISCORD;
     public static final ModConfigSpec.BooleanValue CHAT_CROSS_SERVER_DEFAULT;
     public static final ModConfigSpec.IntValue CHAT_CROSS_SERVER_POLL;
 
@@ -215,6 +219,16 @@ public final class BridgeConfig {
                 .defineInRange("channelHistoryHours", 2, 1, 720);
         CHAT_TYPING = b.comment("Avec ArcadiaChat : afficher aux autres joueurs du serveur qui est en train d'ecrire.")
                 .define("typingIndicator", true);
+        CHAT_OFFLINE_MESSAGES = b.comment(
+                        "/msg a un joueur hors ligne (deja venu sur le reseau) : le message lui est remis a sa prochaine",
+                        "connexion, sur n'importe quel serveur.")
+                .define("offlineMessages", true);
+        CHAT_OFFLINE_MAX = b.comment("Messages en attente au plus par joueur.")
+                .defineInRange("offlineMessagesMax", 20, 1, 200);
+        CHAT_OFFLINE_DAYS = b.comment("Duree de conservation d'un message non remis, en jours.")
+                .defineInRange("offlineMessagesDays", 30, 1, 365);
+        CHAT_OFFLINE_DISCORD = b.comment("Prevenir le joueur en message prive sur Discord, si son compte est lie.")
+                .define("offlineMessagesDiscord", true);
         b.pop();
 
         b.push("status");

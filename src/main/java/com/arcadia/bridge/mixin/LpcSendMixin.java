@@ -1,7 +1,9 @@
 package com.arcadia.bridge.mixin;
 
+import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.tabs.ChatTabs;
 import com.arcadia.bridge.tabs.TabsProtocol;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
@@ -9,6 +11,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
@@ -20,11 +23,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(targets = "com.lpcneoforge.lpcmod.server.LPCEvents", remap = false)
 public abstract class LpcSendMixin {
 
+
     @Inject(method = "sendMessage", at = @At("HEAD"), cancellable = true, require = 0)
     private static void arcadiabridge$tagLocalChat(Player player, MutableComponent message, boolean emptyLine,
                                                     CallbackInfo ci) {
-        if (player instanceof ServerPlayer serverPlayer
-                && ChatTabs.send(serverPlayer, TabsProtocol.CHANNEL_LOCAL, "", message)) {
+        if (player instanceof ServerPlayer serverPlayer && ChatTabs.supports(serverPlayer)
+                && ChatTabs.send(serverPlayer, TabsProtocol.CHANNEL_LOCAL, "", ChatTabs.senderOf(serverPlayer, message),
+                message)) {
             ci.cancel();
         }
     }

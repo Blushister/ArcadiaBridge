@@ -73,7 +73,7 @@ public final class DiscordListener extends ListenerAdapter {
         bridge.runOnMain(() -> {
             bridge.server().sendSystemMessage(component);
             for (ServerPlayer player : bridge.server().getPlayerList().getPlayers()) {
-                ChatTabs.deliver(player, TabsProtocol.CHANNEL_DISCORD, "", component);
+                ChatTabs.deliver(player, TabsProtocol.CHANNEL_DISCORD, "", "", component);
             }
         });
     }

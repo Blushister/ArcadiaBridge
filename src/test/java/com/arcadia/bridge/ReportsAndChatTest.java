@@ -147,6 +147,26 @@ class ReportsAndChatTest {
     }
 
     @Test
+
+    @Test
+    @DisplayName("Messages hors ligne : depot, boite limitee, remise unique et purge")
+    void offlineMail() {
+        UUID absent = UUID.randomUUID();
+        assertTrue(repo.addMail(absent, "Dev", "Test1", "coucou", 2).join());
+        assertTrue(repo.addMail(absent, "Dev2", "Test2", "tu es la ?", 2).join());
+        assertFalse(repo.addMail(absent, "Dev", "Test1", "encore", 2).join(), "boite pleine a 2 messages");
+
+        var mails = repo.takeMail(absent).join();
+        assertEquals(List.of("coucou", "tu es la ?"), mails.stream().map(m -> m.message()).toList());
+        assertEquals("Dev2", mails.get(1).fromName());
+        assertTrue(repo.takeMail(absent).join().isEmpty(), "remis une seule fois");
+
+        repo.addMail(absent, "Dev", "Test1", "vieux", 5).join();
+        repo.purgeMail(System.currentTimeMillis() + 1000).join();
+        assertTrue(repo.takeMail(absent).join().isEmpty(), "purge des messages trop anciens");
+    }
+
+    @Test
     @DisplayName("Canal prive : on n'y entre que par un ajout du staff")
     void privateChannel() {
         UUID joueur = UUID.randomUUID();

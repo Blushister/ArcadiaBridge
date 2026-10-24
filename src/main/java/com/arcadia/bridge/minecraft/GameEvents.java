@@ -80,6 +80,8 @@ public final class GameEvents {
         bridge.verification().onJoin(player);
         bridge.crossChat().onJoin(player);
         bridge.channels().onJoin(player);
+        // Un peu apres l'arrivee : le client a eu le temps de s'annoncer (onglets d'ArcadiaChat).
+        bridge.runOnMainLater(() -> bridge.channels().deliverMail(player), 3000);
         bridge.ipGuard().onJoin(player);
     }
 
@@ -109,6 +111,7 @@ public final class GameEvents {
      * bloque par un autre mod (zone protegee, saisie en cours...) : on ne le relaie pas. Avec LPC,
      * l'annulation est la norme, puisque LPC a deja diffuse le message lui-meme : on le relaie.
      */
+
     @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
     public static void onChatRelay(ServerChatEvent event) {
         Bridge bridge = Bridge.get();
@@ -180,7 +183,22 @@ public final class GameEvents {
         if (target != null) {
             event.setCanceled(true);
             bridge.channels().sendPrivate(player, target, parts[2]);
+            return;
         }
+        // Connecte nulle part : on garde le message, s'il s'agit bien d'un joueur deja venu sur le reseau.
+        if (!BridgeConfig.CHAT_OFFLINE_MESSAGES.get() || !parts[1].matches("[A-Za-z0-9_]{3,16}")) {
+            return;
+        }
+        event.setCanceled(true);
+        String name = parts[1];
+        String text = parts[2];
+        bridge.resolvePlayer(name).thenAccept(ref -> bridge.runOnMain(() -> {
+            if (ref == null) {
+                player.sendSystemMessage(Lang.mc("cmd.player_unknown", "name", name));
+            } else {
+                bridge.channels().sendOffline(player, ref, text);
+            }
+        }));
     }
 
     /** Commandes de message privees interdites aux joueurs mutes (/msg, /tell, /me...). */

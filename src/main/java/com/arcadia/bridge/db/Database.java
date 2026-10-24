@@ -257,6 +257,42 @@ public final class Database implements AutoCloseable {
                         + "PRIMARY KEY (uuid, channel),"
                         + "INDEX idx_channel (channel))" + opts);
             }
+            try (Statement s = c.createStatement()) {
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("mail") + " ("
+                        + "id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,"
+                        + "to_uuid CHAR(36) NOT NULL,"
+                        + "from_name VARCHAR(16) NOT NULL,"
+                        + "from_server VARCHAR(64) NOT NULL,"
+                        + "message VARCHAR(512) NOT NULL,"
+                        + "created_at BIGINT NOT NULL,"
+                        + "INDEX idx_to (to_uuid))" + opts);
+            }
+            try (Statement s = c.createStatement()) {
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("shares") + " ("
+                        + "id CHAR(12) NOT NULL PRIMARY KEY,"
+                        + "owner VARCHAR(16) NOT NULL,"
+                        + "kind VARCHAR(8) NOT NULL,"
+                        + "data MEDIUMTEXT NOT NULL,"
+                        + "created_at BIGINT NOT NULL,"
+                        + "INDEX idx_created (created_at))" + opts);
+            }
+            try (Statement s = c.createStatement()) {
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("polls") + " ("
+                        + "id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,"
+                        + "question VARCHAR(256) NOT NULL,"
+                        + "options TEXT NOT NULL,"
+                        + "created_by VARCHAR(16) NOT NULL,"
+                        + "server_id VARCHAR(64) NOT NULL,"
+                        + "created_at BIGINT NOT NULL,"
+                        + "ends_at BIGINT NOT NULL,"
+                        + "closed TINYINT(1) NOT NULL DEFAULT 0,"
+                        + "INDEX idx_due (closed, server_id, ends_at))" + opts);
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("poll_votes") + " ("
+                        + "poll_id BIGINT NOT NULL,"
+                        + "uuid CHAR(36) NOT NULL,"
+                        + "choice INT NOT NULL,"
+                        + "PRIMARY KEY (poll_id, uuid))" + opts);
+            }
             // Apres la creation de la table des canaux : colonne ajoutee dans la version 1.2.
             addColumnIfMissing(c, t("channels"), "is_private", "TINYINT(1) NOT NULL DEFAULT 0");
             try (Statement s = c.createStatement()) {

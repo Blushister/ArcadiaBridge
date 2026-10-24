@@ -1,5 +1,9 @@
 package com.arcadia.bridge.chat;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -15,6 +19,7 @@ import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.data.Models.ChannelInfo;
 import com.arcadia.bridge.data.Models.ChatLine;
 import com.arcadia.bridge.data.Models.JoinResult;
+import com.arcadia.bridge.data.Models.Mail;
 import com.arcadia.bridge.data.Models.PlayerRef;
 import com.arcadia.bridge.data.Models.ServerStatus;
 import com.arcadia.bridge.data.Repository;
@@ -133,8 +138,9 @@ public final class ChatChannels {
                 "name", name,
                 "message", Text.forMinecraft(text, BridgeConfig.CHAT_MAX_LENGTH.get())));
         LOGGER.info("[Staff] {} : {}", name, Text.stripFormatting(text));
-        deliverLocal(TabsProtocol.CHANNEL_STAFF, line, this::isStaff);
+        deliverLocal(TabsProtocol.CHANNEL_STAFF, Bridge.serverId(), name, line, this::isStaff);
         publish(name, text, line, TabsProtocol.CHANNEL_STAFF);
+    }
     }
 
     /** Message d'un joueur dans un canal thematique qu'il a rejoint. */
@@ -156,7 +162,7 @@ public final class ChatChannels {
                 "name", name,
                 "message", Text.forMinecraft(text, BridgeConfig.CHAT_MAX_LENGTH.get())));
         String tag = TabsProtocol.CHANNEL_PREFIX + channel;
-        deliverLocal(tag, line, p -> isMember(p.getUUID(), channel));
+        deliverLocal(tag, Bridge.serverId(), name, line, p -> isMember(p.getUUID(), channel));
         publish(name, text, line, tag);
     }
 
@@ -168,7 +174,7 @@ public final class ChatChannels {
         Component line = Component.literal(Text.fill(Text.colorize(BridgeConfig.CHAT_ALERT_FORMAT.get()),
                 "server", Text.stripFormatting(serverName()),
                 "message", Text.stripFormatting(message)));
-        bridge.runOnMain(() -> deliverLocal(TabsProtocol.CHANNEL_ALERT, line, this::isStaff));
+        bridge.runOnMain(() -> deliverLocal(TabsProtocol.CHANNEL_ALERT, Bridge.serverId(), "", line, this::isStaff));
         publish("", message, line, TabsProtocol.CHANNEL_ALERT);
     }
 
@@ -176,13 +182,15 @@ public final class ChatChannels {
 
     /** Mise a jour a chaque synchronisation : qui est connecte ailleurs. */
     public void updateRemotePlayers(List<ServerStatus> online) {
-        Map<String, String> names = new java.util.HashMap<>();
+        Map<String, String> names = new HashMap<>();
         for (ServerStatus server : online) {
             if (!server.serverId().equals(Bridge.serverId())) {
                 server.names().forEach(name -> names.put(name.toLowerCase(Locale.ROOT), name));
             }
         }
         remotePlayers = Map.copyOf(names);
+        List<String> list = List.copyOf(names.values());
+        bridge.runOnMain(() -> ChatTabs.updateRemotePlayers(list));
     }
 
     /** Pseudo exact d'un joueur connecte a un autre serveur, ou null. */
@@ -201,9 +209,82 @@ public final class ChatChannels {
                 .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC);
         Component incoming = Component.translatable("commands.message.display.incoming", name, body)
                 .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC);
-        ChatTabs.deliver(sender, TabsProtocol.CHANNEL_PRIVATE, target, outgoing);
+        ChatTabs.deliver(sender, TabsProtocol.CHANNEL_PRIVATE, target, name, outgoing);
         LOGGER.info("[MP] {} -> {} ({}) : {}", name, target, serverName(), Text.stripFormatting(text));
         publish(name, text, incoming, PRIVATE_PREFIX + target.toLowerCase(Locale.ROOT));
+    }
+
+    // ---------------------------------------------------------------- messages hors ligne
+
+    private static final DateTimeFormatter MAIL_DATE =
+            DateTimeFormatter.ofPattern("dd/MM HH:mm").withZone(ZoneId.systemDefault());
+
+    /** /msg a un joueur hors ligne : le message l'attend, et il est prevenu sur Discord si son compte est lie. */
+    public void sendOffline(ServerPlayer sender, PlayerRef target, String text) {
+        Repository repo = bridge.repository();
+        if (repo == null || !acceptMessage(sender, text)) {
+            return;
+        }
+        String name = sender.getGameProfile().getName();
+        String body = Text.forMinecraft(text, BridgeConfig.CHAT_MAX_LENGTH.get());
+        repo.addMail(target.uuid(), name, serverName(), body, BridgeConfig.CHAT_OFFLINE_MAX.get())
+                .thenAccept(stored -> bridge.runOnMain(() -> {
+                    if (!stored) {
+                        sender.sendSystemMessage(Lang.mc("mail.full", "name", target.name()));
+                        return;
+                    }
+                    Component outgoing = Component.translatable("commands.message.display.outgoing", target.name(), body)
+                            .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC)
+                            .append(Lang.mc("mail.offline_tag"));
+                    ChatTabs.deliver(sender, TabsProtocol.CHANNEL_PRIVATE, target.name(), name, outgoing);
+                    LOGGER.info("[MP hors ligne] {} -> {} : {}", name, target.name(), Text.stripFormatting(text));
+                    notifyOnDiscord(target, name, body);
+                }))
+                .exceptionally(error -> {
+                    LOGGER.warn("[ArcadiaBridge] Message hors ligne non enregistre : {}", error.toString());
+                    bridge.runOnMain(() -> sender.sendSystemMessage(Lang.mc("common.error")));
+                    return null;
+                });
+    }
+
+    private void notifyOnDiscord(PlayerRef target, String from, String body) {
+        if (!BridgeConfig.CHAT_OFFLINE_DISCORD.get() || !bridge.discord().isReady()) {
+            return;
+        }
+        bridge.cache().link(target.uuid()).ifPresent(link -> bridge.discord().sendDirectMessage(link.discordId(),
+                Lang.get("mail.discord", "name", Text.forDiscord(from), "server", Text.forDiscord(serverName()),
+                        "message", Text.forDiscord(body))));
+    }
+
+    /** A la connexion : les messages recus pendant l'absence du joueur. */
+    public void deliverMail(ServerPlayer player) {
+        Repository repo = bridge.repository();
+        if (repo == null || !BridgeConfig.CHAT_OFFLINE_MESSAGES.get()) {
+            return;
+        }
+        repo.takeMail(player.getUUID()).thenAccept(list -> {
+            if (list.isEmpty()) {
+                return;
+            }
+            bridge.runOnMain(() -> {
+                if (player.hasDisconnected()) {
+                    return;
+                }
+                ChatTabs.deliver(player, TabsProtocol.CHANNEL_PRIVATE, "", "", Lang.mc("mail.header", "count", list.size()));
+                for (Mail mail : list) {
+                    Component line = Component.translatable("commands.message.display.incoming", mail.fromName(),
+                                    mail.message()).withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC)
+                            .append(Lang.mc("mail.date", "date", MAIL_DATE.format(Instant.ofEpochMilli(
+                                    mail.createdAt())), "server", mail.fromServer()));
+                    ChatTabs.deliver(player, TabsProtocol.CHANNEL_PRIVATE, mail.fromName(), mail.fromName(), line);
+                }
+            });
+        }).exceptionally(error -> {
+            LOGGER.warn("[ArcadiaBridge] Messages hors ligne de {} illisibles : {}", player.getGameProfile().getName(),
+                    error.toString());
+            return null;
+        });
+    }
     }
 
     public void publishTyping(String name, boolean typing) {
@@ -219,24 +300,25 @@ public final class ChatChannels {
         if (channel.startsWith(PRIVATE_PREFIX)) {
             ServerPlayer target = bridge.server().getPlayerList().getPlayerByName(channel.substring(PRIVATE_PREFIX.length()));
             if (target != null) {
-                ChatTabs.deliver(target, TabsProtocol.CHANNEL_PRIVATE, line.playerName(), component);
+                ChatTabs.deliver(target, TabsProtocol.CHANNEL_PRIVATE, line.playerName(), line.playerName(), component);
             }
             return;
         }
         if (TabsProtocol.CHANNEL_STAFF.equals(channel) || TabsProtocol.CHANNEL_ALERT.equals(channel)) {
             if (staffEnabled()) {
-                deliverLocal(channel, component, this::isStaff);
+                deliverLocal(channel, line.serverId(), line.playerName(), component, this::isStaff);
             }
         } else if (channel.startsWith(TabsProtocol.CHANNEL_PREFIX) && channelsEnabled()) {
             String name = channel.substring(TabsProtocol.CHANNEL_PREFIX.length());
-            deliverLocal(channel, component, p -> isMember(p.getUUID(), name));
+            deliverLocal(channel, line.serverId(), line.playerName(), component, p -> isMember(p.getUUID(), name));
         }
     }
 
-    private void deliverLocal(String channel, Component line, Predicate<ServerPlayer> recipients) {
+    private void deliverLocal(String channel, String origin, String sender, Component line,
+                              Predicate<ServerPlayer> recipients) {
         for (ServerPlayer player : bridge.server().getPlayerList().getPlayers()) {
             if (recipients.test(player)) {
-                ChatTabs.deliver(player, channel, Bridge.serverId(), line);
+                ChatTabs.deliver(player, channel, origin, sender, line);
             }
         }
     }
@@ -360,12 +442,12 @@ public final class ChatChannels {
                 return;
             }
             var registries = bridge.server().registryAccess();
-            ChatTabs.deliver(player, tag, Bridge.serverId(),
+            ChatTabs.deliver(player, tag, Bridge.serverId(), "",
                     Lang.mc("cmd.channel.history", "channel", channel, "count", lines.size()));
             for (ChatLine line : lines) {
                 Component component = CrossServerChat.parse(line.formatted(), registries);
                 if (component != null) {
-                    ChatTabs.deliver(player, tag, line.serverId(), component);
+                    ChatTabs.deliver(player, tag, line.serverId(), line.playerName(), component);
                 }
             }
         })).exceptionally(error -> {

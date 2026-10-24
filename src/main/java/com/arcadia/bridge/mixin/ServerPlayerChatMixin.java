@@ -24,6 +24,7 @@ public abstract class ServerPlayerChatMixin {
     @Shadow
     public abstract boolean acceptsChatMessages();
 
+
     @Inject(method = "sendChatMessage", at = @At("HEAD"), cancellable = true)
     private void arcadiabridge$tagPlayerChat(OutgoingChatMessage message, boolean filtered, ChatType.Bound boundType,
                                              CallbackInfo ci) {
@@ -41,7 +42,9 @@ public abstract class ServerPlayerChatMixin {
         if (isPrivate) {
             partner = boundType.targetName().map(Component::getString).orElse(boundType.name().getString());
         }
-        if (ChatTabs.send(self, channel, partner, boundType.decorate(message.content()))) {
+        // Auteur : soi-meme pour un message prive sortant, sinon celui dont le pseudo accompagne le message.
+        String sender = boundType.targetName().isPresent() ? self.getGameProfile().getName() : boundType.name().getString();
+        if (ChatTabs.send(self, channel, partner, sender, boundType.decorate(message.content()))) {
             ci.cancel();
         }
     }

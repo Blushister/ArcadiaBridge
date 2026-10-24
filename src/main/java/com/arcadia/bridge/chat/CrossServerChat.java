@@ -16,7 +16,9 @@ import com.arcadia.bridge.tabs.TabsProtocol;
 import com.arcadia.bridge.util.Text;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.server.level.ServerPlayer;
@@ -35,7 +37,7 @@ public final class CrossServerChat {
 
     private static final Logger LOGGER = LogUtils.getLogger();
     /** Au-dela, la ligne mise en forme est ignoree et le format par defaut s'applique. */
-    private static final int MAX_FORMATTED_JSON = 8192;
+    private static final int MAX_FORMATTED_JSON = 32768;
 
     private final Bridge bridge;
     /** Joueurs ayant choisi le mode local (les autres suivent le reglage par defaut). */
@@ -154,7 +156,8 @@ public final class CrossServerChat {
                     if (ChatTabs.supports(player)) {
                         // Avec ArcadiaChat, le joueur recoit tout : c'est son onglet qui filtre.
                         for (int i = 0; i < components.size(); i++) {
-                            ChatTabs.send(player, TabsProtocol.CHANNEL_GLOBAL, global.get(i).serverId(), components.get(i));
+                            ChatTabs.send(player, TabsProtocol.CHANNEL_GLOBAL, global.get(i).serverId(),
+                                    global.get(i).playerName(), components.get(i));
                         }
                     } else if (isGlobal(player.getUUID())) {
                         components.forEach(player::sendSystemMessage);
@@ -198,6 +201,16 @@ public final class CrossServerChat {
      * Relit la ligne mise en forme par l'autre serveur. Seuls le texte et son apparence sont gardes :
      * aucun clic, survol ou insertion ne passe d'un serveur a l'autre.
      */
+
+    /** Survols acceptes : texte et fiche d'objet. */
+    private static HoverEvent safeHover(HoverEvent hover) {
+        if (hover == null) {
+            return null;
+        }
+        var action = hover.getAction();
+        return action == HoverEvent.Action.SHOW_TEXT || action == HoverEvent.Action.SHOW_ITEM ? hover : null;
+    }
+
     public static Component parse(String json, HolderLookup.Provider registries) {
         if (json == null || json.isEmpty() || json.length() > MAX_FORMATTED_JSON) {
             return null;
@@ -209,8 +222,8 @@ public final class CrossServerChat {
             }
             MutableComponent safe = Component.empty();
             parsed.visit((style, text) -> {
-                safe.append(Component.literal(text).withStyle(style.withClickEvent(null).withHoverEvent(null)
-                        .withInsertion(null)));
+                safe.append(Component.literal(text).withStyle(style.withClickEvent(safeClick(style.getClickEvent()))
+                        .withHoverEvent(safeHover(style.getHoverEvent())).withInsertion(null)));
                 return Optional.empty();
             }, Style.EMPTY);
             int max = BridgeConfig.CHAT_MAX_LENGTH.get() + 256;

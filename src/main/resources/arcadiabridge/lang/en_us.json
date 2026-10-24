@@ -161,5 +161,10 @@
   "cmd.channel.kicked": "&a{name} was removed from #{channel}.",
   "cmd.channel.members": "&6Members of #{channel} ({count}): &f{members}",
   "cmd.channel.added_you": "&aYou were added to channel #{channel}.",
-  "cmd.channel.removed_you": "&eYou were removed from channel #{channel}."
+  "cmd.channel.removed_you": "&eYou were removed from channel #{channel}.",
+  "mail.offline_tag": " &8(offline: they will get it when they join)",
+  "mail.full": "&c{name} already has too many pending messages: try again later.",
+  "mail.header": "&6📬 {count} message(s) received while you were away:",
+  "mail.date": " &8[{date}, {server}]",
+  "mail.discord": "📬 **{name}** left you a message on Arcadia ({server}):\n> {message}\nYou will find it in game next time you join."
 }

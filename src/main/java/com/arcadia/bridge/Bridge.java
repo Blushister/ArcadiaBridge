@@ -282,6 +282,7 @@ public final class Bridge {
         return crossChat;
     }
 
+
     public ChatChannels channels() {
         return channels;
     }
@@ -311,6 +312,13 @@ public final class Bridge {
 
     public static String serverId() {
         return BridgeConfig.SERVER_ID.get();
+    }
+
+    /** Execute une tache sur le thread principal apres un delai. */
+    public void runOnMainLater(Runnable task, long delayMillis) {
+        if (!stopping) {
+            scheduler.schedule(() -> runOnMain(task), delayMillis, TimeUnit.MILLISECONDS);
+        }
     }
 
     public void runOnMain(Runnable task) {

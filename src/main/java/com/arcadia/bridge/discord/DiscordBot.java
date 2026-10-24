@@ -19,6 +19,7 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.UserSnowflake;
 import net.dv8tion.jda.api.entities.Webhook;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
@@ -231,6 +232,18 @@ public final class DiscordBot {
                 Button.danger(base + ReportService.ACTION_BAN, Lang.get("report.button.ban")),
                 Button.primary(base + ReportService.ACTION_MUTE, Lang.get("report.button.mute")),
                 Button.secondary(base + ReportService.ACTION_IGNORE, Lang.get("report.button.ignore")));
+    }
+
+    /** Message prive Discord a un membre ; ignore en silence s'il refuse les messages prives. */
+    public void sendDirectMessage(long userId, String text) {
+        JDA current = jda;
+        if (!isReady() || current == null || text.isBlank()) {
+            return;
+        }
+        current.retrieveUserById(userId)
+                .flatMap(User::openPrivateChannel)
+                .flatMap(channel -> channel.sendMessage(truncate(text, Message.MAX_CONTENT_LENGTH)))
+                .queue(null, error -> LOGGER.debug("[ArcadiaBridge] Message prive Discord impossible : {}", error.toString()));
     }
 
     // ---------------------------------------------------------------- moderation

@@ -19,6 +19,7 @@ import com.arcadia.bridge.data.Models.Link;
 import com.arcadia.bridge.data.Models.ChannelInfo;
 import com.arcadia.bridge.data.Models.ChatLine;
 import com.arcadia.bridge.data.Models.JoinResult;
+import com.arcadia.bridge.data.Models.Mail;
 import com.arcadia.bridge.data.Models.PlayerRef;
 import com.arcadia.bridge.data.Models.Report;
 import com.arcadia.bridge.data.Models.RedeemResult;
@@ -41,6 +42,7 @@ public final class Repository {
     private final String chat;
     private final String channels;
     private final String channelMembers;
+    private final String mail;
 
     public Repository(Database db) {
         this.db = db;
@@ -53,6 +55,7 @@ public final class Repository {
         this.chat = db.t("chat");
         this.channels = db.t("channels");
         this.channelMembers = db.t("channel_members");
+        this.mail = db.t("mail");
     }
 
     // ---------------------------------------------------------------- etat des serveurs
@@ -237,6 +240,7 @@ public final class Repository {
     }
 
     /** Messages des autres serveurs posterieurs a un identifiant donne. */
+
     public CompletableFuture<List<ChatLine>> fetchChat(long afterId, String excludeServerId) {
         return db.async(c -> {
             List<ChatLine> lines = new ArrayList<>();
@@ -808,6 +812,71 @@ public final class Repository {
                 return rs.next();
             }
         }
+    }
+
+
+    // ---------------------------------------------------------------- messages hors ligne
+
+    /**
+     * Laisse un message a un joueur hors ligne.
+     *
+     * @return false si sa boite est pleine ({@code maxPending} messages en attente)
+     */
+    public CompletableFuture<Boolean> addMail(UUID to, String fromName, String fromServer, String message,
+                                              int maxPending) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("SELECT COUNT(*) FROM " + mail + " WHERE to_uuid = ?")) {
+                ps.setString(1, to.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next() && rs.getInt(1) >= maxPending) {
+                        return false;
+                    }
+                }
+            }
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + mail
+                    + " (to_uuid, from_name, from_server, message, created_at) VALUES (?, ?, ?, ?, ?)")) {
+                ps.setString(1, to.toString());
+                ps.setString(2, fromName);
+                ps.setString(3, fromServer);
+                ps.setString(4, message);
+                ps.setLong(5, System.currentTimeMillis());
+                ps.executeUpdate();
+            }
+            return true;
+        });
+    }
+
+    /** Les messages en attente d'un joueur, du plus ancien au plus recent ; ils sont retires de la base. */
+    public CompletableFuture<List<Mail>> takeMail(UUID to) {
+        return db.transaction(c -> {
+            List<Mail> list = new ArrayList<>();
+            try (PreparedStatement ps = c.prepareStatement("SELECT id, from_name, from_server, message, created_at FROM "
+                    + mail + " WHERE to_uuid = ? ORDER BY id FOR UPDATE")) {
+                ps.setString(1, to.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        list.add(new Mail(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getLong(5)));
+                    }
+                }
+            }
+            if (!list.isEmpty()) {
+                try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + mail + " WHERE to_uuid = ?")) {
+                    ps.setString(1, to.toString());
+                    ps.executeUpdate();
+                }
+            }
+            return list;
+        });
+    }
+
+    public CompletableFuture<Void> purgeMail(long before) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + mail + " WHERE created_at < ?")) {
+                ps.setLong(1, before);
+                ps.executeUpdate();
+            }
+            return null;
+        });
     }
 
     // ---------------------------------------------------------------- canaux thematiques

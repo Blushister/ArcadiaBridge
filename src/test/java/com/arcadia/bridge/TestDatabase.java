@@ -50,7 +50,8 @@ final class TestDatabase {
         db.sync((Connection c) -> {
             try (Statement s = c.createStatement()) {
                 for (String table : new String[]{"sanctions", "codes", "links", "players", "reports", "chat", "servers",
-                        "channel_members", "channels"}) {
+                        "channel_members", "channels", "mail", "shares",
+                        "poll_votes", "polls"}) {
                     s.execute("DROP TABLE IF EXISTS " + prefix + table);
                 }
             }

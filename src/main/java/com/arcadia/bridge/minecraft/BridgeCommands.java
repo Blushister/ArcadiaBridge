@@ -23,6 +23,8 @@ import com.arcadia.bridge.sanction.SanctionService;
 import com.arcadia.bridge.sanction.SanctionService.Request;
 import com.arcadia.bridge.util.Durations;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
@@ -290,6 +292,7 @@ public final class BridgeCommands {
     }
 
     /** /chat [global|local] : participer ou non au chat commun a tous les serveurs. */
+
     // ---------------------------------------------------------------- chat staff et canaux
 
     /** Nom de canal ; {@code mine} : suggere les canaux du joueur. */

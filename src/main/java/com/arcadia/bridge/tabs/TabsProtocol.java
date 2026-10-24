@@ -22,7 +22,7 @@ import net.minecraft.resources.ResourceLocation;
 public final class TabsProtocol {
 
     public static final String NAMESPACE = "arcadiachat";
-    public static final String VERSION = "2";
+    public static final String VERSION = "3";
 
     /** Canaux d'un message. Le client decide dans quels onglets il apparait. */
     public static final String CHANNEL_GLOBAL = "global";
@@ -116,12 +116,16 @@ public final class TabsProtocol {
         }
     }
 
-    /** Serveur -> client : une ligne de chat et son canal ({@code origin} : voir les canaux). */
-    public record Line(String channel, String origin, Component message) implements CustomPacketPayload {
+    /**
+     * Serveur -> client : une ligne de chat et son canal. {@code origin} : voir les canaux ; {@code sender} :
+     * le joueur qui a ecrit (vide pour une annonce, une alerte ou un message venu de Discord).
+     */
+    public record Line(String channel, String origin, String sender, Component message) implements CustomPacketPayload {
         public static final Type<Line> TYPE = new Type<>(id("line"));
         public static final StreamCodec<RegistryFriendlyByteBuf, Line> STREAM_CODEC = StreamCodec.composite(
                 ByteBufCodecs.STRING_UTF8, Line::channel,
                 ByteBufCodecs.STRING_UTF8, Line::origin,
+                ByteBufCodecs.STRING_UTF8, Line::sender,
                 ComponentSerialization.STREAM_CODEC, Line::message,
                 Line::new);
 
@@ -223,6 +227,19 @@ public final class TabsProtocol {
 
         @Override
         public Type<ChannelDirectory> type() {
+            return TYPE;
+        }
+    }
+
+    /** Serveur -> client : les joueurs connectes aux autres serveurs (completion des pseudos). */
+    public record RemotePlayers(List<String> names) implements CustomPacketPayload {
+        public static final Type<RemotePlayers> TYPE = new Type<>(id("remote_players"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, RemotePlayers> STREAM_CODEC = StreamCodec.composite(
+                STRINGS, RemotePlayers::names,
+                RemotePlayers::new);
+
+        @Override
+        public Type<RemotePlayers> type() {
             return TYPE;
         }
     }
