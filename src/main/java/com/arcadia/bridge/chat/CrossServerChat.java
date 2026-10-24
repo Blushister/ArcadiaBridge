@@ -201,6 +201,14 @@ public final class CrossServerChat {
      * Relit la ligne mise en forme par l'autre serveur. Seuls le texte et son apparence sont gardes :
      * aucun clic, survol ou insertion ne passe d'un serveur a l'autre.
      */
+    /** Seuls les clics des partages et des sondages traversent les serveurs. */
+    private static ClickEvent safeClick(ClickEvent click) {
+        if (click == null || click.getAction() != ClickEvent.Action.RUN_COMMAND) {
+            return null;
+        }
+        String value = click.getValue();
+        return value.startsWith("/partage ") || value.startsWith("/sondage voter ") ? click : null;
+    }
 
     /** Survols acceptes : texte et fiche d'objet. */
     private static HoverEvent safeHover(HoverEvent hover) {

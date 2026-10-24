@@ -11,6 +11,7 @@ import java.util.function.Function;
 import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.chat.ChatChannels;
 import com.arcadia.bridge.chat.CrossServerChat;
+import com.arcadia.bridge.chat.PollService;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.data.Models.JoinResult;
 import com.arcadia.bridge.data.Models.PlayerRef;
@@ -129,6 +130,22 @@ public final class BridgeCommands {
                 .then(Commands.literal("members")
                         .requires(src -> Permissions.has(src, Permissions.CHANNELS_MANAGE))
                         .then(channelArgument(false).executes(BridgeCommands::channelMembers))));
+
+        d.register(Commands.literal("sondage")
+                .then(Commands.literal("creer")
+                        .requires(src -> Permissions.has(src, Permissions.POLLS))
+                        .then(Commands.argument("texte", StringArgumentType.greedyString()).executes(BridgeCommands::pollCreate)))
+                .then(Commands.literal("voter")
+                        .then(Commands.argument("id", LongArgumentType.longArg(1))
+                                .then(Commands.argument("choix", IntegerArgumentType.integer(1, PollService.MAX_OPTIONS))
+                                        .executes(BridgeCommands::pollVote))))
+                .then(Commands.literal("resultats")
+                        .then(Commands.argument("id", LongArgumentType.longArg(1)).executes(ctx ->
+                                pollReply(ctx, Bridge.get().polls().results(LongArgumentType.getLong(ctx, "id"))))))
+                .then(Commands.literal("fin")
+                        .requires(src -> Permissions.has(src, Permissions.POLLS))
+                        .then(Commands.argument("id", LongArgumentType.longArg(1)).executes(ctx ->
+                                pollReply(ctx, Bridge.get().polls().close(LongArgumentType.getLong(ctx, "id")))))));
 
         d.register(staff("arcadia_bridge", Permissions.ADMIN)
                 .then(Commands.literal("status").executes(BridgeCommands::status))
@@ -292,6 +309,50 @@ public final class BridgeCommands {
     }
 
     /** /chat [global|local] : participer ou non au chat commun a tous les serveurs. */
+    // ---------------------------------------------------------------- sondages
+
+    private static boolean pollsReady(CommandContext<CommandSourceStack> ctx) {
+        Bridge bridge = Bridge.get();
+        if (bridge == null || bridge.repository() == null || !PollService.enabled()) {
+            ctx.getSource().sendFailure(Lang.mc("poll.disabled"));
+            return false;
+        }
+        return true;
+    }
+
+    private static int pollCreate(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = ctx.getSource().getPlayer();
+        if (player == null) {
+            ctx.getSource().sendFailure(Lang.mc("cmd.players_only"));
+            return 0;
+        }
+        if (!pollsReady(ctx)) {
+            return 0;
+        }
+        Component error = Bridge.get().polls().create(player, arg(ctx, "texte"));
+        if (error != null) {
+            ctx.getSource().sendFailure(error);
+            return 0;
+        }
+        return 1;
+    }
+
+    private static int pollVote(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = ctx.getSource().getPlayer();
+        if (player == null || !pollsReady(ctx)) {
+            return 0;
+        }
+        return pollReply(ctx, Bridge.get().polls().vote(player, LongArgumentType.getLong(ctx, "id"),
+                IntegerArgumentType.getInteger(ctx, "choix")));
+    }
+
+    private static int pollReply(CommandContext<CommandSourceStack> ctx, CompletableFuture<Component> future) {
+        if (!pollsReady(ctx)) {
+            return 0;
+        }
+        reply(ctx, future);
+        return 1;
+    }
 
     // ---------------------------------------------------------------- chat staff et canaux
 

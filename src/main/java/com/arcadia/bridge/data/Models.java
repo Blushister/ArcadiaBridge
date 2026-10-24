@@ -84,6 +84,15 @@ public final class Models {
     public record Share(String id, String owner, String kind, String data, long createdAt) {
     }
 
+    /** Sondage ; les choix sont numerotes a partir de 1 pour les joueurs. */
+    public record Poll(long id, String question, java.util.List<String> options, String createdBy, String serverId,
+                       long endsAt, boolean closed) {
+    }
+
+    public enum VoteResult {
+        OK, CLOSED, BAD_CHOICE, UNKNOWN
+    }
+
     /** Message prive laisse a un joueur hors ligne. */
     public record Mail(long id, String fromName, String fromServer, String message, long createdAt) {
     }

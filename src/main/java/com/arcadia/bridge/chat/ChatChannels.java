@@ -300,6 +300,13 @@ public final class ChatChannels {
     /** Ligne venue d'un autre serveur (thread principal). */
     public void deliverRemote(ChatLine line, Component component) {
         String channel = line.channel();
+        if (PollService.RELAY.equals(channel)) {
+            if (PollService.enabled()) {
+                bridge.server().getPlayerList().getPlayers().forEach(p ->
+                        ChatTabs.deliver(p, TabsProtocol.CHANNEL_LOCAL, line.serverId(), "", component));
+            }
+            return;
+        }
         if (channel.startsWith(PRIVATE_PREFIX)) {
             ServerPlayer target = bridge.server().getPlayerList().getPlayerByName(channel.substring(PRIVATE_PREFIX.length()));
             if (target != null) {

@@ -62,6 +62,8 @@ public final class BridgeConfig {
     public static final ModConfigSpec.IntValue CHAT_CHANNEL_HISTORY_HOURS;
     public static final ModConfigSpec.BooleanValue CHAT_TYPING;
     public static final ModConfigSpec.BooleanValue CHAT_SHARES;
+    public static final ModConfigSpec.BooleanValue CHAT_POLLS;
+    public static final ModConfigSpec.IntValue CHAT_POLL_MINUTES;
     public static final ModConfigSpec.BooleanValue CHAT_OFFLINE_MESSAGES;
     public static final ModConfigSpec.IntValue CHAT_OFFLINE_MAX;
     public static final ModConfigSpec.IntValue CHAT_OFFLINE_DAYS;
@@ -224,6 +226,10 @@ public final class BridgeConfig {
                         "Partage dans le chat : [item] (objet en main), [inv] (inventaire), [ender] (coffre de l'Ender),",
                         "[pos] (position). Aussi [objet], [inventaire], [position].")
                 .define("shares", true);
+        CHAT_POLLS = b.comment("Sondages communs a tous les serveurs (/sondage), crees par le staff.")
+                .define("polls", true);
+        CHAT_POLL_MINUTES = b.comment("Duree par defaut d'un sondage, en minutes.")
+                .defineInRange("pollMinutes", 10, 1, 10080);
         CHAT_OFFLINE_MESSAGES = b.comment(
                         "/msg a un joueur hors ligne (deja venu sur le reseau) : le message lui est remis a sa prochaine",
                         "connexion, sur n'importe quel serveur.")

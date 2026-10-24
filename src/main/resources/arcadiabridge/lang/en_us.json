@@ -183,5 +183,20 @@
   "share.position.hover": "&7Click to add a waypoint",
   "share.position.waypoint": "Shared position {coords}",
   "share.position.other_server": "&eThis position is on server {server}: {coords}",
-  "share.position.coords": "&aPosition: {dimension} {coords}"
+  "share.position.coords": "&aPosition: {dimension} {coords}",
+  "poll.usage": "&cUsage: /sondage creer [duration] Question? | Choice 1 | Choice 2 (up to 6 choices, separated by | or ;). Ex: /sondage creer 30m Event tonight? | Yes | No",
+  "poll.disabled": "&cPolls are disabled on this server.",
+  "poll.header": "&6[Poll] &e{name} asks: &f{question}",
+  "poll.vote.hover": "&7Vote \"{choice}\"",
+  "poll.footer": " &8(ends in {minutes} min, results: /sondage resultats {id})",
+  "poll.voted": "&aVote recorded: {choice}. You can still change your mind.",
+  "poll.closed": "&cThis poll is over.",
+  "poll.bad_choice": "&cThis choice does not exist.",
+  "poll.unknown": "&cPoll #{id} not found.",
+  "poll.ended": "&aPoll closed, results announced.",
+  "poll.results": "&6[Poll] &fResults: {question} &8({total} votes)",
+  "poll.results.option": " &e{choice} &f{count} &8({percent} %)",
+  "poll.discord.new": "📊 **Poll** by {name}: {question}{options}\n*Vote in game within the next {minutes} minutes.*",
+  "poll.discord.results": "📊 **Poll results**: {question}{results}",
+  "poll.discord.total": "{total} votes"
 }

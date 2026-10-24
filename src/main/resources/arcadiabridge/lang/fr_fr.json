@@ -183,5 +183,20 @@
   "share.position.hover": "&7Cliquer pour ajouter un point de repère",
   "share.position.waypoint": "Position partagée {coords}",
   "share.position.other_server": "&eCette position est sur le serveur {server} : {coords}",
-  "share.position.coords": "&aPosition : {dimension} {coords}"
+  "share.position.coords": "&aPosition : {dimension} {coords}",
+  "poll.usage": "&cUtilisation : /sondage creer [durée] Question ? | Choix 1 | Choix 2 (jusqu'à 6 choix, séparés par | ou ;). Ex : /sondage creer 30m Event ce soir ? | Oui | Non",
+  "poll.disabled": "&cLes sondages sont désactivés sur ce serveur.",
+  "poll.header": "&6[Sondage] &e{name} demande : &f{question}",
+  "poll.vote.hover": "&7Voter « {choice} »",
+  "poll.footer": " &8(fin dans {minutes} min, résultats : /sondage resultats {id})",
+  "poll.voted": "&aVote enregistré : {choice}. Tu peux encore changer d'avis.",
+  "poll.closed": "&cCe sondage est terminé.",
+  "poll.bad_choice": "&cCe choix n'existe pas.",
+  "poll.unknown": "&cSondage n°{id} introuvable.",
+  "poll.ended": "&aSondage clôturé, résultats annoncés.",
+  "poll.results": "&6[Sondage] &fRésultats : {question} &8({total} votes)",
+  "poll.results.option": " &e{choice} &f{count} &8({percent} %)",
+  "poll.discord.new": "📊 **Sondage** de {name} : {question}{options}\n*Votez en jeu dans les {minutes} prochaines minutes.*",
+  "poll.discord.results": "📊 **Résultats du sondage** : {question}{results}",
+  "poll.discord.total": "{total} votes"
 }

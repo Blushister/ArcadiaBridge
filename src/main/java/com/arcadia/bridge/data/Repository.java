@@ -20,6 +20,8 @@ import com.arcadia.bridge.data.Models.ChannelInfo;
 import com.arcadia.bridge.data.Models.ChatLine;
 import com.arcadia.bridge.data.Models.JoinResult;
 import com.arcadia.bridge.data.Models.Mail;
+import com.arcadia.bridge.data.Models.Poll;
+import com.arcadia.bridge.data.Models.VoteResult;
 import com.arcadia.bridge.data.Models.Share;
 import com.arcadia.bridge.data.Models.PlayerRef;
 import com.arcadia.bridge.data.Models.Report;
@@ -45,6 +47,8 @@ public final class Repository {
     private final String channelMembers;
     private final String mail;
     private final String shares;
+    private final String polls;
+    private final String pollVotes;
 
     public Repository(Database db) {
         this.db = db;
@@ -59,6 +63,8 @@ public final class Repository {
         this.channelMembers = db.t("channel_members");
         this.mail = db.t("mail");
         this.shares = db.t("shares");
+        this.polls = db.t("polls");
+        this.pollVotes = db.t("poll_votes");
     }
 
     // ---------------------------------------------------------------- etat des serveurs
@@ -817,6 +823,124 @@ public final class Repository {
         }
     }
 
+    // ---------------------------------------------------------------- sondages
+
+    public CompletableFuture<Long> createPoll(String question, List<String> options, String createdBy, String serverId,
+                                              long endsAt) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + polls
+                    + " (question, options, created_by, server_id, created_at, ends_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS)) {
+                ps.setString(1, question);
+                ps.setString(2, String.join("\n", options));
+                ps.setString(3, createdBy);
+                ps.setString(4, serverId);
+                ps.setLong(5, System.currentTimeMillis());
+                ps.setLong(6, endsAt);
+                ps.executeUpdate();
+                try (ResultSet keys = ps.getGeneratedKeys()) {
+                    keys.next();
+                    return keys.getLong(1);
+                }
+            }
+        });
+    }
+
+    public CompletableFuture<Poll> loadPoll(long id) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("SELECT " + POLL_COLUMNS + " FROM " + polls + " WHERE id = ?")) {
+                ps.setLong(1, id);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() ? readPoll(rs) : null;
+                }
+            }
+        });
+    }
+
+    /** Vote (ou change son vote). {@code choice} commence a 0. */
+    public CompletableFuture<VoteResult> vote(long pollId, UUID uuid, int choice) {
+        return db.async(c -> {
+            Poll poll;
+            try (PreparedStatement ps = c.prepareStatement("SELECT " + POLL_COLUMNS + " FROM " + polls + " WHERE id = ?")) {
+                ps.setLong(1, pollId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        return VoteResult.UNKNOWN;
+                    }
+                    poll = readPoll(rs);
+                }
+            }
+            if (poll.closed() || poll.endsAt() <= System.currentTimeMillis()) {
+                return VoteResult.CLOSED;
+            }
+            if (choice < 0 || choice >= poll.options().size()) {
+                return VoteResult.BAD_CHOICE;
+            }
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + pollVotes + " (poll_id, uuid, choice)"
+                    + " VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE choice = VALUES(choice)")) {
+                ps.setLong(1, pollId);
+                ps.setString(2, uuid.toString());
+                ps.setInt(3, choice);
+                ps.executeUpdate();
+            }
+            return VoteResult.OK;
+        });
+    }
+
+    /** Nombre de votes par choix. */
+    public CompletableFuture<int[]> pollResults(long pollId, int optionCount) {
+        return db.async(c -> {
+            int[] counts = new int[optionCount];
+            try (PreparedStatement ps = c.prepareStatement("SELECT choice, COUNT(*) FROM " + pollVotes
+                    + " WHERE poll_id = ? GROUP BY choice")) {
+                ps.setLong(1, pollId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        int choice = rs.getInt(1);
+                        if (choice >= 0 && choice < optionCount) {
+                            counts[choice] = rs.getInt(2);
+                        }
+                    }
+                }
+            }
+            return counts;
+        });
+    }
+
+    /** Sondages de ce serveur arrives a leur terme et pas encore clotures. */
+    public CompletableFuture<List<Poll>> duePolls(String serverId, long now) {
+        return db.async(c -> {
+            List<Poll> list = new ArrayList<>();
+            try (PreparedStatement ps = c.prepareStatement("SELECT " + POLL_COLUMNS + " FROM " + polls
+                    + " WHERE closed = 0 AND server_id = ? AND ends_at <= ?")) {
+                ps.setString(1, serverId);
+                ps.setLong(2, now);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        list.add(readPoll(rs));
+                    }
+                }
+            }
+            return list;
+        });
+    }
+
+    /** @return true si ce serveur vient de cloturer le sondage (une seule fois, meme en cas de concurrence) */
+    public CompletableFuture<Boolean> closePoll(long id) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("UPDATE " + polls + " SET closed = 1 WHERE id = ? AND closed = 0")) {
+                ps.setLong(1, id);
+                return ps.executeUpdate() == 1;
+            }
+        });
+    }
+
+    private static final String POLL_COLUMNS = "id, question, options, created_by, server_id, ends_at, closed";
+
+    private static Poll readPoll(ResultSet rs) throws SQLException {
+        return new Poll(rs.getLong(1), rs.getString(2), List.of(rs.getString(3).split("\n")), rs.getString(4),
+                rs.getString(5), rs.getLong(6), rs.getBoolean(7));
+    }
 
     // ---------------------------------------------------------------- partages du chat
 

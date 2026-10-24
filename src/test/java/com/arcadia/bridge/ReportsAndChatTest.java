@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import com.arcadia.bridge.data.Models.ChatLine;
 import com.arcadia.bridge.data.Models.JoinResult;
+import com.arcadia.bridge.data.Models.VoteResult;
 import com.arcadia.bridge.data.Models.PlayerRef;
 import com.arcadia.bridge.data.Models.Report;
 import com.arcadia.bridge.data.Models.Sanction;
@@ -147,6 +148,26 @@ class ReportsAndChatTest {
     }
 
     @Test
+    @DisplayName("Sondage : vote, changement d'avis, choix invalide, cloture unique")
+    void poll() {
+        long now = System.currentTimeMillis();
+        long id = repo.createPoll("Event ce soir ?", List.of("Oui", "Non"), "Modo", "test1", now + 60_000).join();
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        assertEquals(VoteResult.OK, repo.vote(id, a, 0).join());
+        assertEquals(VoteResult.OK, repo.vote(id, b, 0).join());
+        assertEquals(VoteResult.OK, repo.vote(id, b, 1).join(), "on peut changer d'avis");
+        assertEquals(VoteResult.BAD_CHOICE, repo.vote(id, a, 5).join());
+        assertEquals(VoteResult.UNKNOWN, repo.vote(id + 999, a, 0).join());
+        assertEquals(List.of(1, 1), java.util.Arrays.stream(repo.pollResults(id, 2).join()).boxed().toList());
+        assertEquals(List.of("Oui", "Non"), repo.loadPoll(id).join().options());
+
+        assertTrue(repo.duePolls("test1", now).join().isEmpty(), "pas encore a son terme");
+        assertEquals(1, repo.duePolls("test1", now + 120_000).join().size());
+        assertTrue(repo.closePoll(id).join());
+        assertFalse(repo.closePoll(id).join(), "cloture une seule fois");
+        assertEquals(VoteResult.CLOSED, repo.vote(id, a, 1).join());
+    }
 
     @Test
     @DisplayName("Partage d'inventaire : enregistre, relu, puis purge")

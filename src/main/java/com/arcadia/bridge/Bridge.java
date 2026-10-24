@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.arcadia.bridge.chat.ChatChannels;
 import com.arcadia.bridge.chat.CrossServerChat;
+import com.arcadia.bridge.chat.PollService;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.data.BridgeCache;
 import com.arcadia.bridge.data.Models.Link;
@@ -51,6 +52,7 @@ public final class Bridge {
     private final ReportService reports;
     private final CrossServerChat crossChat;
     private final ChatChannels channels;
+    private final PollService polls;
     private final IpGuard ipGuard;
     private final ScheduledExecutorService scheduler;
 
@@ -74,6 +76,7 @@ public final class Bridge {
         this.reports = new ReportService(this);
         this.crossChat = new CrossServerChat(this);
         this.channels = new ChatChannels(this);
+        this.polls = new PollService(this);
         this.ipGuard = new IpGuard(this);
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "ArcadiaBridge-Sync");
@@ -194,6 +197,7 @@ public final class Bridge {
         List<ServerStatus> online = repository.loadServers().join().stream().filter(st -> st.isOnline(seen)).toList();
         channels.updateRemotePlayers(online);
         runOnMain(() -> ChatTabs.updateServers(online));
+        polls.closeDue();
         if (isPrimary() && discord.isReady()) {
             long now = System.currentTimeMillis();
             if (BridgeConfig.STATUS_BOT_PRESENCE.get()) {
@@ -284,6 +288,9 @@ public final class Bridge {
         return crossChat;
     }
 
+    public PollService polls() {
+        return polls;
+    }
 
     public ChatChannels channels() {
         return channels;

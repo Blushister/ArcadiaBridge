@@ -35,6 +35,8 @@ public final class Permissions {
     public static final PermissionNode<Boolean> STAFF_CHAT = staff("chat.staff");
     /** Creer et supprimer les canaux thematiques. */
     public static final PermissionNode<Boolean> CHANNELS_MANAGE = staff("chat.channels.manage");
+    /** Creer et cloturer des sondages. */
+    public static final PermissionNode<Boolean> POLLS = staff("chat.polls");
     /** Dispense de verification Discord (personne par defaut). */
     public static final PermissionNode<Boolean> VERIFICATION_BYPASS = new PermissionNode<>(ArcadiaBridge.MOD_ID,
             "verification.bypass", PermissionTypes.BOOLEAN, (player, uuid, ctx) -> false);
@@ -48,7 +50,7 @@ public final class Permissions {
     }
 
     public static void register(PermissionGatherEvent.Nodes event) {
-        event.addNodes(BAN, MUTE, WARN, HISTORY, UNLINK, ADMIN, STAFF_CHAT, CHANNELS_MANAGE, VERIFICATION_BYPASS);
+        event.addNodes(BAN, MUTE, WARN, HISTORY, UNLINK, ADMIN, STAFF_CHAT, CHANNELS_MANAGE, POLLS, VERIFICATION_BYPASS);
     }
 
     /**
