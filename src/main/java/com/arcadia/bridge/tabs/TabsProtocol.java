@@ -33,6 +33,8 @@ public final class TabsProtocol {
     public static final String CHANNEL_STAFF = "staff";
     /** Alertes pour le staff (signalements, contournement de ban). */
     public static final String CHANNEL_ALERT = "alert";
+    /** Chat d'equipe (FTB Teams). */
+    public static final String CHANNEL_TEAM = "team";
     /** Prefixe des canaux thematiques : "#commerce". */
     public static final String CHANNEL_PREFIX = "#";
 
@@ -64,16 +66,21 @@ public final class TabsProtocol {
 
     /** Serveur -> client, en reponse a {@link Ready} : le serveur gere les onglets. */
     public record Hello(String serverId, String serverName, boolean crossServer, boolean writesGlobal, boolean staff,
-                        boolean typing) implements CustomPacketPayload {
+                        boolean typing, boolean team) implements CustomPacketPayload {
         public static final Type<Hello> TYPE = new Type<>(id("hello"));
-        public static final StreamCodec<RegistryFriendlyByteBuf, Hello> STREAM_CODEC = StreamCodec.composite(
-                ByteBufCodecs.STRING_UTF8, Hello::serverId,
-                ByteBufCodecs.STRING_UTF8, Hello::serverName,
-                ByteBufCodecs.BOOL, Hello::crossServer,
-                ByteBufCodecs.BOOL, Hello::writesGlobal,
-                ByteBufCodecs.BOOL, Hello::staff,
-                ByteBufCodecs.BOOL, Hello::typing,
-                Hello::new);
+        // Ecrit a la main : StreamCodec.composite s'arrete a six champs.
+        public static final StreamCodec<RegistryFriendlyByteBuf, Hello> STREAM_CODEC = StreamCodec.of(
+                (buf, hello) -> {
+                    buf.writeUtf(hello.serverId());
+                    buf.writeUtf(hello.serverName());
+                    buf.writeBoolean(hello.crossServer());
+                    buf.writeBoolean(hello.writesGlobal());
+                    buf.writeBoolean(hello.staff());
+                    buf.writeBoolean(hello.typing());
+                    buf.writeBoolean(hello.team());
+                },
+                buf -> new Hello(buf.readUtf(), buf.readUtf(), buf.readBoolean(), buf.readBoolean(), buf.readBoolean(),
+                        buf.readBoolean(), buf.readBoolean()));
 
         @Override
         public Type<Hello> type() {

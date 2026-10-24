@@ -62,6 +62,7 @@ public final class BridgeConfig {
     public static final ModConfigSpec.IntValue CHAT_CHANNEL_HISTORY_HOURS;
     public static final ModConfigSpec.BooleanValue CHAT_TYPING;
     public static final ModConfigSpec.BooleanValue CHAT_SHARES;
+    public static final ModConfigSpec.BooleanValue CHAT_TEAM;
     public static final ModConfigSpec.BooleanValue CHAT_POLLS;
     public static final ModConfigSpec.IntValue CHAT_POLL_MINUTES;
     public static final ModConfigSpec.BooleanValue CHAT_OFFLINE_MESSAGES;
@@ -226,6 +227,8 @@ public final class BridgeConfig {
                         "Partage dans le chat : [item] (objet en main), [inv] (inventaire), [ender] (coffre de l'Ender),",
                         "[pos] (position). Aussi [objet], [inventaire], [position].")
                 .define("shares", true);
+        CHAT_TEAM = b.comment("Avec FTB Teams et ArcadiaChat : onglet Equipe (chat de l'equipe du joueur, sur ce serveur).")
+                .define("teamTab", true);
         CHAT_POLLS = b.comment("Sondages communs a tous les serveurs (/sondage), crees par le staff.")
                 .define("polls", true);
         CHAT_POLL_MINUTES = b.comment("Duree par defaut d'un sondage, en minutes.")

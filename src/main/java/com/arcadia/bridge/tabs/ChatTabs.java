@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.chat.ChatChannels;
 import com.arcadia.bridge.chat.CrossServerChat;
+import com.arcadia.bridge.compat.FtbTeamsCompat;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.data.Models.ServerStatus;
 import com.arcadia.bridge.permission.Permissions;
@@ -32,6 +33,33 @@ public final class ChatTabs {
     /** Dernier "est en train d'ecrire" relaye, par joueur : limite le debit. */
     private static final Map<UUID, Long> TYPING_SENT = new ConcurrentHashMap<>();
     private static final long TYPING_MIN_INTERVAL_MS = 1000;
+
+    /** Auteur du message d'equipe FTB Teams en cours de diffusion (thread principal), ou null. */
+    private static String teamSender;
+
+    public static boolean teamTabAvailable() {
+        return BridgeConfig.CHAT_TEAM.get() && FtbTeamsCompat.isLoaded();
+    }
+
+    public static void beginTeamMessage(UUID from) {
+        Bridge bridge = Bridge.get();
+        ServerPlayer author = bridge == null ? null : bridge.server().getPlayerList().getPlayer(from);
+        teamSender = author == null ? "" : author.getGameProfile().getName();
+    }
+
+    public static void endTeamMessage() {
+        teamSender = null;
+    }
+
+    /**
+     * Ligne systeme envoyee a un joueur : pendant un message d'equipe FTB Teams, elle part dans l'onglet Equipe.
+     *
+     * @return true si elle a ete envoyee ainsi (le message systeme habituel est alors inutile)
+     */
+    public static boolean tagTeamLine(ServerPlayer player, Component line) {
+        return teamSender != null && teamTabAvailable()
+                && send(player, TabsProtocol.CHANNEL_TEAM, Bridge.serverId(), teamSender, line);
+    }
 
     /** Derniere liste de serveurs envoyee aux clients. */
     private static volatile List<TabsProtocol.ServerInfo> servers = List.of();
@@ -148,7 +176,7 @@ public final class ChatTabs {
         PacketDistributor.sendToPlayer(player, new TabsProtocol.Hello(Bridge.serverId(),
                 name.isBlank() ? Bridge.serverId() : name, crossServer,
                 crossServer && bridge.crossChat().isGlobal(player.getUUID()),
-                bridge.channels().isStaff(player), BridgeConfig.CHAT_TYPING.get()));
+                bridge.channels().isStaff(player), BridgeConfig.CHAT_TYPING.get(), teamTabAvailable()));
         PacketDistributor.sendToPlayer(player, new TabsProtocol.Servers(servers));
         PacketDistributor.sendToPlayer(player, new TabsProtocol.RemotePlayers(remotePlayers));
         sendChannels(player);
@@ -234,6 +262,8 @@ public final class ChatTabs {
         String text = Text.stripFormatting(payload.text()).trim();
         if (TabsProtocol.CHANNEL_STAFF.equals(payload.channel())) {
             bridge.channels().sendStaff(player, text);
+        } else if (TabsProtocol.CHANNEL_TEAM.equals(payload.channel())) {
+            bridge.channels().sendTeam(player, text);
         } else if (payload.channel().startsWith(TabsProtocol.CHANNEL_PREFIX)) {
             bridge.channels().sendChannel(player, ChatChannels.normalize(payload.channel()), text);
         }

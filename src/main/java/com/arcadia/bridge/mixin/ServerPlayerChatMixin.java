@@ -24,6 +24,13 @@ public abstract class ServerPlayerChatMixin {
     @Shadow
     public abstract boolean acceptsChatMessages();
 
+    /** Diffusion d'un message d'equipe FTB Teams : la ligne part dans l'onglet Equipe d'ArcadiaChat. */
+    @Inject(method = "sendSystemMessage(Lnet/minecraft/network/chat/Component;Z)V", at = @At("HEAD"), cancellable = true)
+    private void arcadiabridge$tagTeamLine(Component message, boolean overlay, CallbackInfo ci) {
+        if (!overlay && ChatTabs.tagTeamLine((ServerPlayer) (Object) this, message)) {
+            ci.cancel();
+        }
+    }
 
     @Inject(method = "sendChatMessage", at = @At("HEAD"), cancellable = true)
     private void arcadiabridge$tagPlayerChat(OutgoingChatMessage message, boolean filtered, ChatType.Bound boundType,

@@ -184,6 +184,7 @@
   "share.position.waypoint": "Position partagée {coords}",
   "share.position.other_server": "&eCette position est sur le serveur {server} : {coords}",
   "share.position.coords": "&aPosition : {dimension} {coords}",
+  "team.none": "&cTu n'es dans aucune équipe (FTB Teams) : crée-en une ou rejoins-en une pour utiliser ce chat.",
   "poll.usage": "&cUtilisation : /sondage creer [durée] Question ? | Choix 1 | Choix 2 (jusqu'à 6 choix, séparés par | ou ;). Ex : /sondage creer 30m Event ce soir ? | Oui | Non",
   "poll.disabled": "&cLes sondages sont désactivés sur ce serveur.",
   "poll.header": "&6[Sondage] &e{name} demande : &f{question}",

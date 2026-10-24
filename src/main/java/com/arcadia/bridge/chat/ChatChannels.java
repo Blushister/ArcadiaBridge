@@ -15,6 +15,7 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import com.arcadia.bridge.Bridge;
+import com.arcadia.bridge.compat.FtbTeamsCompat;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.data.Models.ChannelInfo;
 import com.arcadia.bridge.data.Models.ChatLine;
@@ -143,6 +144,16 @@ public final class ChatChannels {
         deliverLocal(TabsProtocol.CHANNEL_STAFF, Bridge.serverId(), name, line, this::isStaff);
         publish(name, text, line, TabsProtocol.CHANNEL_STAFF);
     }
+
+    /** Message ecrit dans l'onglet Equipe : transmis a FTB Teams, qui le diffuse a l'equipe. */
+    public void sendTeam(ServerPlayer sender, String text) {
+        if (!ChatTabs.teamTabAvailable() || !acceptMessage(sender, text)) {
+            return;
+        }
+        Component body = Shares.apply(Component.literal(Text.forMinecraft(text, BridgeConfig.CHAT_MAX_LENGTH.get())), sender);
+        if (!FtbTeamsCompat.sendToTeam(sender, body)) {
+            sender.sendSystemMessage(Lang.mc("team.none"));
+        }
     }
 
     /** Message d'un joueur dans un canal thematique qu'il a rejoint. */
