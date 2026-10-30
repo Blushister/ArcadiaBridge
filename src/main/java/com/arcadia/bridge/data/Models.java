@@ -80,6 +80,7 @@ public final class Models {
                            String formatted, String channel) {
     }
 
+
     /** Inventaire partage dans le chat ([inv], [ender]) : contenu copie en SNBT. */
     public record Share(String id, String owner, String kind, String data, long createdAt) {
     }

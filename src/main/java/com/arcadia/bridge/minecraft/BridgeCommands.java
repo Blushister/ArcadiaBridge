@@ -613,6 +613,7 @@ public final class BridgeCommands {
         return 1;
     }
 
+
     private static int status(CommandContext<CommandSourceStack> ctx) {
         Bridge bridge = Bridge.get();
         boolean db = bridge != null && bridge.isDatabaseReady();

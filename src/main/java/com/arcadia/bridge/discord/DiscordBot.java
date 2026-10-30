@@ -226,6 +226,7 @@ public final class DiscordBot {
         }
     }
 
+
     private static List<Button> reportButtons(long reportId) {
         String base = ReportService.BUTTON_PREFIX + reportId + ":";
         return List.of(

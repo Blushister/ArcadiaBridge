@@ -292,6 +292,7 @@ public final class Bridge {
         return polls;
     }
 
+
     public ChatChannels channels() {
         return channels;
     }

@@ -63,6 +63,7 @@ public final class BridgeConfig {
     public static final ModConfigSpec.BooleanValue CHAT_TYPING;
     public static final ModConfigSpec.BooleanValue CHAT_SHARES;
     public static final ModConfigSpec.BooleanValue CHAT_TEAM;
+    public static final ModConfigSpec.BooleanValue CHAT_NO_REPORTS;
     public static final ModConfigSpec.BooleanValue CHAT_POLLS;
     public static final ModConfigSpec.IntValue CHAT_POLL_MINUTES;
     public static final ModConfigSpec.BooleanValue CHAT_OFFLINE_MESSAGES;
@@ -229,6 +230,10 @@ public final class BridgeConfig {
                 .define("shares", true);
         CHAT_TEAM = b.comment("Avec FTB Teams et ArcadiaChat : onglet Equipe (chat de l'equipe du joueur, sur ce serveur).")
                 .define("teamTab", true);
+        CHAT_NO_REPORTS = b.comment("Chat non signalable (remplace No Chat Reports) : la signature des messages n'est plus exigee",
+                        "et le chat des joueurs part sans signature, donc ne peut pas etre signale a Mojang. Prend le pas sur",
+                        "enforce-secure-profile de server.properties.")
+                .define("noChatReports", true);
         CHAT_POLLS = b.comment("Sondages communs a tous les serveurs (/sondage), crees par le staff.")
                 .define("polls", true);
         CHAT_POLL_MINUTES = b.comment("Duree par defaut d'un sondage, en minutes.")

@@ -51,7 +51,19 @@ public abstract class ServerPlayerChatMixin {
         }
         // Auteur : soi-meme pour un message prive sortant, sinon celui dont le pseudo accompagne le message.
         String sender = boundType.targetName().isPresent() ? self.getGameProfile().getName() : boundType.name().getString();
-        if (ChatTabs.send(self, channel, partner, sender, boundType.decorate(message.content()))) {
+        if (isPrivate) {
+            Replies.remember(self, partner);
+        }
+        Component line = boundType.decorate(message.content());
+        Bridge bridge = Bridge.get();
+        if (bridge != null) {
+            line = bridge.moderation().clean(self.server.getPlayerList().getPlayerByName(sender), line);
+        }
+        if (ChatTabs.send(self, channel, partner, sender, line)) {
+            ci.cancel();
+        } else if (BridgeConfig.CHAT_NO_REPORTS.get()) {
+            // Sans ArcadiaChat aussi : un message systeme ne porte pas de signature, il ne peut pas etre signale.
+            self.sendSystemMessage(line);
             ci.cancel();
         }
     }
