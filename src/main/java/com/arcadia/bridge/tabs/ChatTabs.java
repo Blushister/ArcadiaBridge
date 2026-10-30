@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.chat.ChatChannels;
 import com.arcadia.bridge.chat.CrossServerChat;
+import com.arcadia.bridge.chat.Ignores;
 import com.arcadia.bridge.compat.FtbTeamsCompat;
 import com.arcadia.bridge.moderation.StaffPanel;
 import com.arcadia.bridge.config.BridgeConfig;
@@ -74,6 +75,11 @@ public final class ChatTabs {
     /** Derniere liste de serveurs envoyee aux clients. */
     private static volatile List<TabsProtocol.ServerInfo> servers = List.of();
 
+    /** Joueurs connectes aux autres serveurs (derniere synchronisation). */
+    public static List<String> remotePlayerNames() {
+        return remotePlayers;
+    }
+
     /** Serveurs Arcadia en ligne (derniere synchronisation). */
     public static List<TabsProtocol.ServerInfo> servers() {
         return servers;
@@ -125,6 +131,11 @@ public final class ChatTabs {
      * @return false si le joueur n'a pas le mod : l'appelant envoie alors le message habituel
      */
     public static boolean send(ServerPlayer player, String channel, String origin, String sender, Component message) {
+        // Auteur ignore (/ignore) : la ligne n'est pas envoyee du tout, sauf dans le chat staff.
+        if (Ignores.ignores(player, sender) && !TabsProtocol.CHANNEL_STAFF.equals(channel)
+                && !TabsProtocol.CHANNEL_ALERT.equals(channel)) {
+            return true;
+        }
         if (!supports(player)) {
             return false;
         }
@@ -394,7 +405,7 @@ public final class ChatTabs {
         }
         var state = new TabsProtocol.TypingState(name, typing, true);
         for (ServerPlayer player : bridge.server().getPlayerList().getPlayers()) {
-            if (supports(player) && bridge.crossChat().isGlobal(player.getUUID())) {
+            if (supports(player) && bridge.crossChat().isGlobal(player.getUUID()) && !Ignores.ignores(player, name)) {
                 PacketDistributor.sendToPlayer(player, state);
             }
         }
@@ -407,7 +418,7 @@ public final class ChatTabs {
         }
         var state = new TabsProtocol.TypingState(player.getGameProfile().getName(), typing, false);
         for (ServerPlayer other : bridge.server().getPlayerList().getPlayers()) {
-            if (other != player && supports(other)) {
+            if (other != player && supports(other) && !Ignores.ignores(other, state.name())) {
                 PacketDistributor.sendToPlayer(other, state);
             }
         }

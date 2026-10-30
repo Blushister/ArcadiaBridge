@@ -394,6 +394,19 @@ public final class TabsProtocol {
     public static final int PANEL_PINS = 8;
     public static final int PANEL_REPORTS = 16;
 
+    /**
+     * Client -> serveur : action du panel staff. {@code kind} et {@code args} :
+     * "rule" [portee, secondes, verrou], "announce_add" [message, minutes, serveurs, discord],
+     * "announce_toggle" [id, actif], "announce_delete" [id], "filter_set" [mot, bloquer], "filter_delete" [mot],
+     * "pin_set" [portee, message], "pin_delete" [portee], "report" [id, "ignore" | "mute" | "ban"].
+     */
+    public record PanelAction(String kind, List<String> args) implements CustomPacketPayload {
+        public static final Type<PanelAction> TYPE = new Type<>(id("panel_action"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, PanelAction> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.stringUtf8(32), PanelAction::kind,
+                ByteBufCodecs.stringUtf8(512).apply(ByteBufCodecs.list(8)), PanelAction::args,
+                PanelAction::new);
+
         @Override
         public Type<PanelAction> type() {
             return TYPE;

@@ -206,6 +206,19 @@ class ReportsAndChatTest {
     }
 
     @Test
+    @DisplayName("/ignore : ajout, liste par joueur, retrait")
+    void ignores() {
+        UUID me = UUID.randomUUID();
+        var troll = new com.arcadia.bridge.data.Models.PlayerRef(UUID.randomUUID(), "Troll");
+        repo.addIgnore(me, troll).join();
+        repo.addIgnore(me, troll).join();
+        assertEquals(List.of(troll), repo.loadIgnores(me).join(), "pas de doublon");
+        assertTrue(repo.loadIgnores(UUID.randomUUID()).join().isEmpty(), "liste propre a chaque joueur");
+        repo.removeIgnore(me, troll.uuid()).join();
+        assertTrue(repo.loadIgnores(me).join().isEmpty());
+    }
+
+    @Test
     @DisplayName("Messages hors ligne : depot, boite limitee, remise unique et purge")
     void offlineMail() {
         UUID absent = UUID.randomUUID();

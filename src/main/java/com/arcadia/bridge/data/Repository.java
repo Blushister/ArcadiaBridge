@@ -54,6 +54,7 @@ public final class Repository {
     private final String chatRules;
     private final String announcements;
     private final String chatFilters;
+    private final String ignores;
     private final String chatPins;
     private final String polls;
     private final String pollVotes;
@@ -74,6 +75,7 @@ public final class Repository {
         this.chatRules = db.t("chat_rules");
         this.announcements = db.t("announcements");
         this.chatFilters = db.t("chat_filters");
+        this.ignores = db.t("ignores");
         this.chatPins = db.t("chat_pins");
         this.polls = db.t("polls");
         this.pollVotes = db.t("poll_votes");
@@ -1167,6 +1169,50 @@ public final class Repository {
         return db.async(c -> {
             try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + chatFilters + " WHERE word = ?")) {
                 ps.setString(1, word);
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    // ---------------------------------------------------------------- joueurs ignores (/ignore)
+
+    public CompletableFuture<List<PlayerRef>> loadIgnores(UUID uuid) {
+        return db.async(c -> {
+            List<PlayerRef> list = new ArrayList<>();
+            try (PreparedStatement ps = c.prepareStatement("SELECT ignored_uuid, ignored_name FROM " + ignores
+                    + " WHERE uuid = ? ORDER BY ignored_name")) {
+                ps.setString(1, uuid.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        list.add(new PlayerRef(UUID.fromString(rs.getString(1)), rs.getString(2)));
+                    }
+                }
+            }
+            return list;
+        });
+    }
+
+    public CompletableFuture<Void> addIgnore(UUID uuid, PlayerRef ignored) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + ignores
+                    + " (uuid, ignored_uuid, ignored_name, created_at) VALUES (?, ?, ?, ?)"
+                    + " ON DUPLICATE KEY UPDATE ignored_name = VALUES(ignored_name)")) {
+                ps.setString(1, uuid.toString());
+                ps.setString(2, ignored.uuid().toString());
+                ps.setString(3, ignored.name());
+                ps.setLong(4, System.currentTimeMillis());
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    public CompletableFuture<Void> removeIgnore(UUID uuid, UUID ignored) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + ignores + " WHERE uuid = ? AND ignored_uuid = ?")) {
+                ps.setString(1, uuid.toString());
+                ps.setString(2, ignored.toString());
                 ps.executeUpdate();
             }
             return null;

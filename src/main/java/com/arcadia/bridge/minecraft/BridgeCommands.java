@@ -20,6 +20,7 @@ import com.arcadia.bridge.data.Models.SanctionType;
 import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.permission.Permissions;
 import com.arcadia.bridge.report.ReportService;
+import com.arcadia.bridge.chat.Ignores;
 import com.arcadia.bridge.moderation.ChatModeration;
 import com.arcadia.bridge.sanction.SanctionService;
 import com.arcadia.bridge.sanction.SanctionService.Request;
@@ -615,6 +616,29 @@ public final class BridgeCommands {
         return 1;
     }
 
+
+    /** /ignore pseudo (bascule) et /unignore pseudo. */
+    private static int ignore(CommandContext<CommandSourceStack> ctx, boolean remove) {
+        ServerPlayer player = ctx.getSource().getPlayer();
+        if (player == null) {
+            ctx.getSource().sendFailure(Lang.mc("cmd.players_only"));
+            return 0;
+        }
+        reply(ctx, Ignores.change(player, arg(ctx, "player"), remove));
+        return 1;
+    }
+
+    private static int ignoreList(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = ctx.getSource().getPlayer();
+        if (player == null) {
+            ctx.getSource().sendFailure(Lang.mc("cmd.players_only"));
+            return 0;
+        }
+        List<String> names = Ignores.names(player);
+        ctx.getSource().sendSuccess(() -> names.isEmpty() ? Lang.mc("ignore.none")
+                : Lang.mc("ignore.list", "names", String.join(", ", names)), false);
+        return 1;
+    }
 
     /** Portee d'une regle du chat : ici, tous, ou l'identifiant d'un serveur en ligne. */
     private static RequiredArgumentBuilder<CommandSourceStack, String> scopeArgument() {

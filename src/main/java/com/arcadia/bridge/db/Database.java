@@ -293,6 +293,40 @@ public final class Database implements AutoCloseable {
                         + "choice INT NOT NULL,"
                         + "PRIMARY KEY (poll_id, uuid))" + opts);
             }
+            try (Statement s = c.createStatement()) {
+                // Moderation du chat (panel staff) : mode lent et verrou par serveur ou pour tous ("*").
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("chat_rules") + " ("
+                        + "scope VARCHAR(64) NOT NULL PRIMARY KEY,"
+                        + "slow_seconds INT NOT NULL DEFAULT 0,"
+                        + "locked TINYINT(1) NOT NULL DEFAULT 0,"
+                        + "updated_by VARCHAR(16) NOT NULL,"
+                        + "updated_at BIGINT NOT NULL)" + opts);
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("announcements") + " ("
+                        + "id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,"
+                        + "message VARCHAR(512) NOT NULL,"
+                        + "interval_minutes INT NOT NULL,"
+                        + "servers VARCHAR(255) NOT NULL,"
+                        + "discord TINYINT(1) NOT NULL DEFAULT 0,"
+                        + "enabled TINYINT(1) NOT NULL DEFAULT 1,"
+                        + "created_by VARCHAR(16) NOT NULL,"
+                        + "created_at BIGINT NOT NULL)" + opts);
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("chat_pins") + " ("
+                        + "scope VARCHAR(64) NOT NULL PRIMARY KEY,"
+                        + "message VARCHAR(256) NOT NULL,"
+                        + "updated_by VARCHAR(16) NOT NULL,"
+                        + "updated_at BIGINT NOT NULL)" + opts);
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("ignores") + " ("
+                        + "uuid CHAR(36) NOT NULL,"
+                        + "ignored_uuid CHAR(36) NOT NULL,"
+                        + "ignored_name VARCHAR(16) NOT NULL,"
+                        + "created_at BIGINT NOT NULL,"
+                        + "PRIMARY KEY (uuid, ignored_uuid))" + opts);
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("chat_filters") + " ("
+                        + "word VARCHAR(64) NOT NULL PRIMARY KEY,"
+                        + "block TINYINT(1) NOT NULL DEFAULT 0,"
+                        + "created_by VARCHAR(16) NOT NULL,"
+                        + "created_at BIGINT NOT NULL)" + opts);
+            }
             // Apres la creation de la table des canaux : colonne ajoutee dans la version 1.2.
             addColumnIfMissing(c, t("channels"), "is_private", "TINYINT(1) NOT NULL DEFAULT 0");
             try (Statement s = c.createStatement()) {

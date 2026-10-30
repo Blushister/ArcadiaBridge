@@ -149,6 +149,116 @@ public final class StaffPanel {
         });
     }
 
+    /** @return l'action en cours, ou null si elle est refusee (permission, valeurs) */
+    private static CompletableFuture<Void> perform(Bridge bridge, ServerPlayer player, String kind, List<String> args) {
+        Repository repo = bridge.repository();
+        if (repo == null) {
+            return null;
+        }
+        ChatModeration moderation = bridge.moderation();
+        String by = player.getGameProfile().getName();
+        int access = access(player);
+        switch (kind) {
+            case "rule" -> {
+                if ((access & TabsProtocol.PANEL_RULES) == 0) {
+                    return null;
+                }
+                String scope = ChatModeration.ALL.equals(args.get(0)) ? ChatModeration.ALL : moderation.resolveScope(args.get(0));
+                if (scope == null) {
+                    return null;
+                }
+                return moderation.setRule(scope, Integer.parseInt(args.get(1)), Boolean.parseBoolean(args.get(2)), by);
+            }
+            case "announce_add" -> {
+                if ((access & TabsProtocol.PANEL_ANNOUNCEMENTS) == 0) {
+                    return null;
+                }
+                String message = args.get(0).replace('\n', ' ').trim();
+                int minutes = Integer.parseInt(args.get(1));
+                String servers = servers(args.get(2));
+                if (message.isEmpty() || Text.stripFormatting(message).isBlank() || message.length() > 256
+                        || minutes < 1 || minutes > 1440 || servers == null) {
+                    return null;
+                }
+                LOGGER.info("[Moderation] {} ajoute une annonce ({} min, {}) : {}", by, minutes, servers, message);
+                return repo.addAnnouncement(message, minutes, servers, Boolean.parseBoolean(args.get(3)), by)
+                        .thenCompose(v -> moderation.changed());
+            }
+            case "announce_toggle" -> {
+                if ((access & TabsProtocol.PANEL_ANNOUNCEMENTS) == 0) {
+                    return null;
+                }
+                return repo.setAnnouncementEnabled(Long.parseLong(args.get(0)), Boolean.parseBoolean(args.get(1)))
+                        .thenCompose(v -> moderation.changed());
+            }
+            case "announce_delete" -> {
+                if ((access & TabsProtocol.PANEL_ANNOUNCEMENTS) == 0) {
+                    return null;
+                }
+                LOGGER.info("[Moderation] {} supprime l'annonce {}", by, args.get(0));
+                return repo.deleteAnnouncement(Long.parseLong(args.get(0))).thenCompose(v -> moderation.changed());
+            }
+            case "filter_set" -> {
+                String word = args.get(0).trim().toLowerCase(Locale.ROOT);
+                if ((access & TabsProtocol.PANEL_FILTERS) == 0 || !WORD.matcher(word).matches()) {
+                    return null;
+                }
+                LOGGER.info("[Moderation] {} filtre \"{}\" ({})", by, word, Boolean.parseBoolean(args.get(1)) ? "bloque" : "masque");
+                return repo.setChatFilter(word, Boolean.parseBoolean(args.get(1)), by).thenCompose(v -> moderation.changed());
+            }
+            case "filter_delete" -> {
+                if ((access & TabsProtocol.PANEL_FILTERS) == 0) {
+                    return null;
+                }
+                LOGGER.info("[Moderation] {} retire le filtre \"{}\"", by, args.get(0));
+                return repo.deleteChatFilter(args.get(0)).thenCompose(v -> moderation.changed());
+            }
+            case "pin_set" -> {
+                if ((access & TabsProtocol.PANEL_PINS) == 0) {
+                    return null;
+                }
+                String scope = ChatModeration.ALL.equals(args.get(0)) ? ChatModeration.ALL : moderation.resolveScope(args.get(0));
+                String message = args.get(1).replace('\n', ' ').trim();
+                if (scope == null || Text.stripFormatting(message).isBlank() || message.length() > 256) {
+                    return null;
+                }
+                LOGGER.info("[Moderation] {} epingle ({}) : {}", by, scope, message);
+                return repo.setChatPin(scope, message, by).thenCompose(v -> moderation.changed());
+            }
+            case "pin_delete" -> {
+                if ((access & TabsProtocol.PANEL_PINS) == 0) {
+                    return null;
+                }
+                LOGGER.info("[Moderation] {} retire le message epingle ({})", by, args.get(0));
+                return repo.deleteChatPin(args.get(0)).thenCompose(v -> moderation.changed());
+            }
+            case "report" -> {
+                String action = args.get(1);
+                boolean allowed = (access & TabsProtocol.PANEL_REPORTS) != 0 && switch (action) {
+                    case ReportService.ACTION_IGNORE -> true;
+                    case ReportService.ACTION_MUTE -> Permissions.has(player, Permissions.MUTE);
+                    case ReportService.ACTION_BAN -> Permissions.has(player, Permissions.BAN);
+                    default -> false;
+                };
+                if (!allowed) {
+                    return null;
+                }
+                long id = Long.parseLong(args.get(0));
+                return repo.findReport(id).thenCompose(found -> bridge.reports().handleAction(id, action, by)
+                        .thenAccept(outcome -> {
+                            bridge.runOnMain(() -> player.sendSystemMessage(Component.literal(outcome.message())));
+                            // Traite ici : les boutons du message Discord n'ont plus lieu d'etre.
+                            if (outcome.handled() && bridge.discord().isReady()) {
+                                found.map(Report::messageId).ifPresent(bridge.discord()::clearReportButtons);
+                            }
+                        }));
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
+
     /** "*" ou une liste d'identifiants de serveurs valides ; null sinon. */
     private static String servers(String value) {
         if (ChatModeration.ALL.equals(value)) {

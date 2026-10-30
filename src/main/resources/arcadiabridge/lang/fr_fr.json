@@ -217,5 +217,13 @@
   "alert.staff_call": "{name} appelle le staff : {message}",
   "announce.line": "&6[Annonce] &f{message}",
   "announce.discord": "📢 {message}",
+  "ignore.added": "&eTu ignores désormais {name} : tu ne verras plus ses messages, sur aucun serveur. (/ignore {name} pour annuler)",
+  "ignore.removed": "&aTu n'ignores plus {name}.",
+  "ignore.not_ignored": "&7Tu n'ignores pas {name}.",
+  "ignore.self": "&cTu ne peux pas t'ignorer toi-même.",
+  "ignore.staff": "&cTu ne peux pas ignorer un membre du staff.",
+  "ignore.full": "&cTu ignores déjà {max} joueurs : retire-en avec /unignore.",
+  "ignore.list": "&eJoueurs ignorés : &f{names}",
+  "ignore.none": "&7Tu n'ignores personne. Utilise /ignore <pseudo>.",
   "pin.line": "&e📌 &f{message}"
 }

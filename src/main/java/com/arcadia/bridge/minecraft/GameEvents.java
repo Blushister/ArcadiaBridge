@@ -15,6 +15,7 @@ import com.arcadia.bridge.discord.DiscordLogs;
 import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.permission.Permissions;
 import com.arcadia.bridge.sanction.SanctionService;
+import com.arcadia.bridge.chat.Ignores;
 import com.arcadia.bridge.moderation.StaffPanel;
 import com.arcadia.bridge.share.ShareCommands;
 import com.arcadia.bridge.share.Shares;
@@ -85,6 +86,7 @@ public final class GameEvents {
         bridge.verification().onJoin(player);
         bridge.crossChat().onJoin(player);
         bridge.channels().onJoin(player);
+        Ignores.onJoin(player);
         // Un peu apres l'arrivee : le client a eu le temps de s'annoncer (onglets d'ArcadiaChat).
         bridge.runOnMainLater(() -> {
             bridge.channels().deliverMail(player);

@@ -168,7 +168,11 @@ public final class CrossServerChat {
                                     global.get(i).playerName(), components.get(i));
                         }
                     } else if (isGlobal(player.getUUID())) {
-                        components.forEach(player::sendSystemMessage);
+                        for (int i = 0; i < components.size(); i++) {
+                            if (!Ignores.ignores(player, global.get(i).playerName())) {
+                                player.sendSystemMessage(components.get(i));
+                            }
+                        }
                     }
                 }
             });

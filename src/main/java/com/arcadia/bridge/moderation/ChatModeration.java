@@ -154,6 +154,22 @@ public final class ChatModeration {
         return Math.max(rule(ALL).slowSeconds(), rule(Bridge.serverId()).slowSeconds());
     }
 
+    /**
+     * Portee d'une regle d'apres l'argument d'une commande : "ici" (ou rien) pour ce serveur, "tous" pour tous,
+     * sinon l'identifiant d'un serveur en ligne. Null si inconnu.
+     */
+    public String resolveScope(String arg) {
+        if (arg == null || arg.isBlank() || arg.equalsIgnoreCase("ici")) {
+            return Bridge.serverId();
+        }
+        if (arg.equalsIgnoreCase("tous") || arg.equalsIgnoreCase("all") || ALL.equals(arg)) {
+            return ALL;
+        }
+        boolean known = arg.equals(Bridge.serverId())
+                || ChatTabs.servers().stream().anyMatch(server -> server.id().equals(arg));
+        return known ? arg : null;
+    }
+
     /** Nom affiche d'une portee : "tous les serveurs" ou le nom du serveur. */
     public static String scopeLabel(String scope) {
         if (ALL.equals(scope)) {

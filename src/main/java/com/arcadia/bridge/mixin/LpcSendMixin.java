@@ -41,7 +41,8 @@ public abstract class LpcSendMixin {
     @Inject(method = "sendMessage", at = @At("HEAD"), cancellable = true, require = 0)
     private static void arcadiabridge$tagLocalChat(Player player, MutableComponent message, boolean emptyLine,
                                                     CallbackInfo ci) {
-        if (player instanceof ServerPlayer serverPlayer && ChatTabs.supports(serverPlayer)
+        // send() ecarte aussi les lignes d'un auteur ignore, meme pour un joueur sans ArcadiaChat.
+        if (player instanceof ServerPlayer serverPlayer
                 && ChatTabs.send(serverPlayer, TabsProtocol.CHANNEL_LOCAL, "", ChatTabs.senderOf(serverPlayer, message),
                 message)) {
             ci.cancel();
