@@ -1,6 +1,7 @@
 package com.arcadia.bridge.mixin;
 
 import com.arcadia.bridge.Bridge;
+import com.arcadia.bridge.chat.Replies;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.tabs.ChatTabs;
 import com.arcadia.bridge.tabs.TabsProtocol;

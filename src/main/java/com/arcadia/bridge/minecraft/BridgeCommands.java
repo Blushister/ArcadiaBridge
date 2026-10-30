@@ -21,6 +21,7 @@ import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.permission.Permissions;
 import com.arcadia.bridge.report.ReportService;
 import com.arcadia.bridge.chat.Ignores;
+import com.arcadia.bridge.chat.Replies;
 import com.arcadia.bridge.moderation.ChatModeration;
 import com.arcadia.bridge.sanction.SanctionService;
 import com.arcadia.bridge.sanction.SanctionService.Request;
@@ -97,7 +98,44 @@ public final class BridgeCommands {
         d.register(Commands.literal("chat")
                 .executes(ctx -> chatMode(ctx, null))
                 .then(Commands.literal("global").executes(ctx -> chatMode(ctx, true)))
-                .then(Commands.literal("local").executes(ctx -> chatMode(ctx, false))));
+                .then(Commands.literal("local").executes(ctx -> chatMode(ctx, false)))
+                // Staff : mode lent et verrou du chat public, ici, partout ("tous") ou sur un serveur donne.
+                .then(Commands.literal("lent")
+                        .requires(src -> Permissions.has(src, Permissions.CHAT_MODERATE))
+                        .then(Commands.literal("off").executes(ctx -> chatRule(ctx, 0, null))
+                                .then(scopeArgument().executes(ctx -> chatRule(ctx, 0, null))))
+                        .then(Commands.argument("secondes", IntegerArgumentType.integer(0, 3600))
+                                .executes(ctx -> chatRule(ctx, IntegerArgumentType.getInteger(ctx, "secondes"), null))
+                                .then(scopeArgument().executes(ctx ->
+                                        chatRule(ctx, IntegerArgumentType.getInteger(ctx, "secondes"), null)))))
+                .then(Commands.literal("verrouiller")
+                        .requires(src -> Permissions.has(src, Permissions.CHAT_MODERATE))
+                        .executes(ctx -> chatRule(ctx, null, true))
+                        .then(scopeArgument().executes(ctx -> chatRule(ctx, null, true))))
+                .then(Commands.literal("deverrouiller")
+                        .requires(src -> Permissions.has(src, Permissions.CHAT_MODERATE))
+                        .executes(ctx -> chatRule(ctx, null, false))
+                        .then(scopeArgument().executes(ctx -> chatRule(ctx, null, false)))));
+
+        d.register(Commands.literal("ignore")
+                .executes(BridgeCommands::ignoreList)
+                .then(Commands.argument("player", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            List<String> names = new ArrayList<>(ctx.getSource().getOnlinePlayerNames());
+                            names.addAll(ChatTabs.remotePlayerNames());
+                            return SharedSuggestionProvider.suggest(names, builder);
+                        })
+                        .executes(ctx -> ignore(ctx, false))));
+        // /r (et /reply) : repond au dernier correspondant en MP, sur n'importe quel serveur, via /msg.
+        for (String name : List.of("r", "reply")) {
+            d.register(Commands.literal(name)
+                    .then(Commands.argument("message", StringArgumentType.greedyString()).executes(BridgeCommands::reply)));
+        }
+        d.register(Commands.literal("unignore")
+                .then(Commands.argument("player", StringArgumentType.word())
+                        .suggests((ctx, builder) -> ctx.getSource().getPlayer() == null ? builder.buildFuture()
+                                : SharedSuggestionProvider.suggest(Ignores.names(ctx.getSource().getPlayer()), builder))
+                        .executes(ctx -> ignore(ctx, true))));
 
         d.register(Commands.literal("sc")
                 .requires(src -> Permissions.has(src, Permissions.STAFF_CHAT))
@@ -616,6 +654,21 @@ public final class BridgeCommands {
         return 1;
     }
 
+    private static int reply(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = ctx.getSource().getPlayer();
+        if (player == null) {
+            ctx.getSource().sendFailure(Lang.mc("cmd.players_only"));
+            return 0;
+        }
+        String partner = Replies.partner(player);
+        if (partner == null) {
+            ctx.getSource().sendFailure(Lang.mc("reply.none"));
+            return 0;
+        }
+        player.server.getCommands().performPrefixedCommand(player.createCommandSourceStack(),
+                "msg " + partner + " " + arg(ctx, "message"));
+        return 1;
+    }
 
     /** /ignore pseudo (bascule) et /unignore pseudo. */
     private static int ignore(CommandContext<CommandSourceStack> ctx, boolean remove) {

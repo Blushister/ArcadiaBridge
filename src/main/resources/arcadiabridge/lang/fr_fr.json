@@ -225,5 +225,6 @@
   "ignore.full": "&cTu ignores déjà {max} joueurs : retire-en avec /unignore.",
   "ignore.list": "&eJoueurs ignorés : &f{names}",
   "ignore.none": "&7Tu n'ignores personne. Utilise /ignore <pseudo>.",
+  "reply.none": "&cPersonne à qui répondre : tu n'as encore échangé aucun message privé.",
   "pin.line": "&e📌 &f{message}"
 }

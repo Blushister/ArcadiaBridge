@@ -227,6 +227,7 @@ public final class ChatChannels {
                 .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC);
         Component incoming = Component.translatable("commands.message.display.incoming", name, body)
                 .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC);
+        Replies.remember(sender, target);
         ChatTabs.deliver(sender, TabsProtocol.CHANNEL_PRIVATE, target, name, outgoing);
         LOGGER.info("[MP] {} -> {} ({}) : {}", name, target, serverName(), Text.stripFormatting(text));
         publish(name, text, incoming, PRIVATE_PREFIX + target.toLowerCase(Locale.ROOT));
@@ -243,6 +244,8 @@ public final class ChatChannels {
         if (repo == null || !acceptMessage(sender, text)) {
             return;
         }
+        Replies.remember(sender, target.name());
+        String cleaned = bridge.moderation().clean(sender, text);
         String name = sender.getGameProfile().getName();
         String body = Text.forMinecraft(cleaned, BridgeConfig.CHAT_MAX_LENGTH.get());
         repo.addMail(target.uuid(), name, serverName(), body, BridgeConfig.CHAT_OFFLINE_MAX.get())
@@ -334,6 +337,7 @@ public final class ChatChannels {
         if (channel.startsWith(PRIVATE_PREFIX)) {
             ServerPlayer target = bridge.server().getPlayerList().getPlayerByName(channel.substring(PRIVATE_PREFIX.length()));
             if (target != null) {
+                Replies.remember(target, line.playerName());
                 ChatTabs.deliver(target, TabsProtocol.CHANNEL_PRIVATE, line.playerName(), line.playerName(), component);
             }
             return;

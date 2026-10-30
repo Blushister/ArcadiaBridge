@@ -16,6 +16,7 @@ import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.permission.Permissions;
 import com.arcadia.bridge.sanction.SanctionService;
 import com.arcadia.bridge.chat.Ignores;
+import com.arcadia.bridge.chat.Replies;
 import com.arcadia.bridge.moderation.StaffPanel;
 import com.arcadia.bridge.share.ShareCommands;
 import com.arcadia.bridge.share.Shares;
@@ -107,6 +108,10 @@ public final class GameEvents {
         bridge.verification().onLeave(player);
         bridge.crossChat().onLeave(player);
         bridge.channels().onLeave(player);
+        bridge.moderation().onLeave(player);
+        Ignores.onLeave(player);
+        Replies.onLeave(player);
+        StaffPanel.onLeave(player);
         ChatTabs.onLogout(player);
         if (ANNOUNCED.remove(player.getUUID()) && BridgeConfig.STATUS_JOIN_LEAVE.get() && !bridge.isStopping()) {
             announce(bridge, player, "discord.status.leave", "name", player.getGameProfile().getName(),
