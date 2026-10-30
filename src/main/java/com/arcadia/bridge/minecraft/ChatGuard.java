@@ -4,6 +4,7 @@ import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.sanction.SanctionService;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
@@ -31,6 +32,20 @@ public final class ChatGuard {
         }
         if (BridgeConfig.VERIFICATION_BLOCK_CHAT.get() && bridge.verification().isPending(player.getUUID())) {
             player.sendSystemMessage(Lang.mc("verify.chat_blocked"));
+            return true;
+        }
+        return false;
+    }
+
+    /** Chat public : en plus, verrou, mode lent et mots bloques (panel staff). */
+    public static boolean shouldBlockPublic(ServerPlayer player, String text) {
+        if (shouldBlock(player)) {
+            return true;
+        }
+        Bridge bridge = Bridge.get();
+        Component refused = bridge == null ? null : bridge.moderation().checkPublic(player, text);
+        if (refused != null) {
+            player.sendSystemMessage(refused);
             return true;
         }
         return false;

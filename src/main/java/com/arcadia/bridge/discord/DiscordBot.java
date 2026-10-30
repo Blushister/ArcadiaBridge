@@ -226,6 +226,13 @@ public final class DiscordBot {
         }
     }
 
+    /** Signalement traite en jeu : ses boutons sont retires du message Discord. */
+    public void clearReportButtons(long messageId) {
+        TextChannel channel = reportChannel();
+        if (isReady() && channel != null) {
+            channel.editMessageComponentsById(messageId).queue(null, this::logFailure);
+        }
+    }
 
     private static List<Button> reportButtons(long reportId) {
         String base = ReportService.BUTTON_PREFIX + reportId + ":";

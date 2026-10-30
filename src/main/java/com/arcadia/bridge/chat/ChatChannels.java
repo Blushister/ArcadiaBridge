@@ -134,6 +134,7 @@ public final class ChatChannels {
         if (!isStaff(sender) || !acceptMessage(sender, text)) {
             return;
         }
+        text = bridge.moderation().clean(sender, text);
         String name = sender.getGameProfile().getName();
         Component line = Component.literal(Text.fill(Text.colorize(BridgeConfig.CHAT_STAFF_FORMAT.get()),
                 "server", Text.stripFormatting(serverName()),
@@ -150,6 +151,7 @@ public final class ChatChannels {
         if (!ChatTabs.teamTabAvailable() || !acceptMessage(sender, text)) {
             return;
         }
+        text = bridge.moderation().clean(sender, text);
         Component body = Shares.apply(Component.literal(Text.forMinecraft(text, BridgeConfig.CHAT_MAX_LENGTH.get())), sender);
         if (!FtbTeamsCompat.sendToTeam(sender, body)) {
             sender.sendSystemMessage(Lang.mc("team.none"));
@@ -168,6 +170,7 @@ public final class ChatChannels {
         if (!acceptMessage(sender, text)) {
             return;
         }
+        text = bridge.moderation().clean(sender, text);
         String name = sender.getGameProfile().getName();
         Component line = Component.literal(Text.fill(Text.colorize(BridgeConfig.CHAT_CHANNEL_FORMAT.get()),
                 "channel", channel,
@@ -217,6 +220,7 @@ public final class ChatChannels {
         if (!acceptMessage(sender, text)) {
             return;
         }
+        text = bridge.moderation().clean(sender, text);
         String name = sender.getGameProfile().getName();
         String body = Text.forMinecraft(text, BridgeConfig.CHAT_MAX_LENGTH.get());
         Component outgoing = Component.translatable("commands.message.display.outgoing", target, body)
@@ -240,7 +244,7 @@ public final class ChatChannels {
             return;
         }
         String name = sender.getGameProfile().getName();
-        String body = Text.forMinecraft(text, BridgeConfig.CHAT_MAX_LENGTH.get());
+        String body = Text.forMinecraft(cleaned, BridgeConfig.CHAT_MAX_LENGTH.get());
         repo.addMail(target.uuid(), name, serverName(), body, BridgeConfig.CHAT_OFFLINE_MAX.get())
                 .thenAccept(stored -> bridge.runOnMain(() -> {
                     if (!stored) {
@@ -251,7 +255,7 @@ public final class ChatChannels {
                             .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC)
                             .append(Lang.mc("mail.offline_tag"));
                     ChatTabs.deliver(sender, TabsProtocol.CHANNEL_PRIVATE, target.name(), name, outgoing);
-                    LOGGER.info("[MP hors ligne] {} -> {} : {}", name, target.name(), Text.stripFormatting(text));
+                    LOGGER.info("[MP hors ligne] {} -> {} : {}", name, target.name(), Text.stripFormatting(cleaned));
                     notifyOnDiscord(target, name, body);
                 }))
                 .exceptionally(error -> {
@@ -369,6 +373,11 @@ public final class ChatChannels {
     /** Joueur muet, en attente de verification, message vide ou trop rapproche : refuse. */
     private boolean acceptMessage(ServerPlayer sender, String text) {
         if (text == null || text.isBlank() || ChatGuard.shouldBlock(sender)) {
+            return false;
+        }
+        Component refused = bridge.moderation().checkWords(sender, text);
+        if (refused != null) {
+            sender.sendSystemMessage(refused);
             return false;
         }
         long now = System.currentTimeMillis();

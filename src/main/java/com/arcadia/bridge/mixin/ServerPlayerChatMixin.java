@@ -1,5 +1,7 @@
 package com.arcadia.bridge.mixin;
 
+import com.arcadia.bridge.Bridge;
+import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.tabs.ChatTabs;
 import com.arcadia.bridge.tabs.TabsProtocol;
 import net.minecraft.network.chat.ChatType;

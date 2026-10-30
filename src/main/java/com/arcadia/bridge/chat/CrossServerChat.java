@@ -11,6 +11,7 @@ import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.data.Models.ChatLine;
 import com.arcadia.bridge.data.Repository;
+import com.arcadia.bridge.moderation.ChatModeration;
 import com.arcadia.bridge.tabs.ChatTabs;
 import com.arcadia.bridge.tabs.TabsProtocol;
 import com.arcadia.bridge.util.Text;
@@ -142,6 +143,8 @@ public final class CrossServerChat {
                         if (parts.length == 3) {
                             ChatTabs.deliverReaction(parts[0], parts[1], line.playerName(), "1".equals(parts[2]));
                         }
+                    } else if (ChatModeration.RELAY.equals(line.channel())) {
+                        bridge.moderation().reload();
                     } else if (ChatChannels.MEMBERSHIP.equals(line.channel())) {
                         bridge.channels().onMembershipEvent(line.message());
                     } else if (!TabsProtocol.CHANNEL_GLOBAL.equals(line.channel())) {

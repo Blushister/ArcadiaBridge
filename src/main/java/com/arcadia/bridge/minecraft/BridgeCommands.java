@@ -20,8 +20,10 @@ import com.arcadia.bridge.data.Models.SanctionType;
 import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.permission.Permissions;
 import com.arcadia.bridge.report.ReportService;
+import com.arcadia.bridge.moderation.ChatModeration;
 import com.arcadia.bridge.sanction.SanctionService;
 import com.arcadia.bridge.sanction.SanctionService.Request;
+import com.arcadia.bridge.tabs.ChatTabs;
 import com.arcadia.bridge.util.Durations;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -613,6 +615,43 @@ public final class BridgeCommands {
         return 1;
     }
 
+
+    /** Portee d'une regle du chat : ici, tous, ou l'identifiant d'un serveur en ligne. */
+    private static RequiredArgumentBuilder<CommandSourceStack, String> scopeArgument() {
+        return Commands.argument("portee", StringArgumentType.word())
+                .suggests((ctx, builder) -> {
+                    List<String> scopes = new ArrayList<>(List.of("ici", "tous"));
+                    ChatTabs.servers().forEach(server -> scopes.add(server.id()));
+                    return SharedSuggestionProvider.suggest(scopes, builder);
+                });
+    }
+
+    /** /chat lent | verrouiller | deverrouiller [portee] */
+    private static int chatRule(CommandContext<CommandSourceStack> ctx, Integer slow, Boolean locked) {
+        Bridge bridge = Bridge.get();
+        if (bridge == null || bridge.repository() == null) {
+            ctx.getSource().sendFailure(Lang.mc("common.unavailable"));
+            return 0;
+        }
+        String arg;
+        try {
+            arg = StringArgumentType.getString(ctx, "portee");
+        } catch (IllegalArgumentException e) {
+            arg = null;
+        }
+        String scope = bridge.moderation().resolveScope(arg);
+        if (scope == null) {
+            ctx.getSource().sendFailure(Lang.mc("moderation.scope.unknown", "scope", arg));
+            return 0;
+        }
+        String label = ChatModeration.scopeLabel(scope);
+        Component done = locked != null
+                ? Lang.mc(locked ? "moderation.done.locked" : "moderation.done.unlocked", "scope", label)
+                : slow > 0 ? Lang.mc("moderation.done.slow", "seconds", slow, "scope", label)
+                : Lang.mc("moderation.done.slow_off", "scope", label);
+        reply(ctx, bridge.moderation().setRule(scope, slow, locked, ctx.getSource().getTextName()).thenApply(v -> done));
+        return 1;
+    }
 
     private static int status(CommandContext<CommandSourceStack> ctx) {
         Bridge bridge = Bridge.get();

@@ -27,12 +27,14 @@ public abstract class LpcSendMixin {
     @ModifyVariable(method = "broadcastMessage", at = @At("HEAD"), argsOnly = true, require = 0)
     private static MutableComponent arcadiabridge$shares(MutableComponent message) {
         Bridge bridge = Bridge.get();
-        if (bridge == null || !Shares.hasToken(message.getString())) {
+        if (bridge == null) {
             return message;
         }
         String sender = ChatTabs.senderOf(bridge.server(), message);
         ServerPlayer player = sender.isEmpty() ? null : bridge.server().getPlayerList().getPlayerByName(sender);
-        Component shared = Shares.apply(message, player);
+        Component shared = Shares.hasToken(message.getString()) ? Shares.apply(message, player) : message;
+        // Mots masques et @everyone desamorce (panel staff).
+        shared = bridge.moderation().clean(player, shared);
         return shared == message ? message : Component.empty().append(shared);
     }
 

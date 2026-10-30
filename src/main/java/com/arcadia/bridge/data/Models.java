@@ -1,5 +1,6 @@
 package com.arcadia.bridge.data;
 
+import java.util.Arrays;
 import java.util.UUID;
 
 /** Types de donnees partages par le mod. */
@@ -80,6 +81,25 @@ public final class Models {
                            String formatted, String channel) {
     }
 
+    /** Regle du chat pour un serveur, ou pour tous ({@code scope} = "*") : mode lent (secondes, 0 = non) et verrou. */
+    public record ChatRule(String scope, int slowSeconds, boolean locked) {
+    }
+
+    /** Annonce automatique : {@code servers} = "*" ou identifiants separes par des virgules. */
+    public record Announcement(long id, String message, int intervalMinutes, String servers, boolean discord,
+                               boolean enabled) {
+        public boolean targets(String serverId) {
+            return "*".equals(servers) || Arrays.asList(servers.split(",")).contains(serverId);
+        }
+    }
+
+    /** Message epingle en haut du chat, pour un serveur ou pour tous ({@code scope} = "*"). */
+    public record ChatPin(String scope, String message) {
+    }
+
+    /** Mot filtre : masque par des etoiles, ou message bloque. */
+    public record ChatFilter(String word, boolean block) {
+    }
 
     /** Inventaire partage dans le chat ([inv], [ender]) : contenu copie en SNBT. */
     public record Share(String id, String owner, String kind, String data, long createdAt) {

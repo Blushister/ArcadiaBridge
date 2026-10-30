@@ -24,7 +24,7 @@ public abstract class CommonHooksMixin {
     @Inject(method = "onServerChatSubmittedEvent", at = @At("HEAD"), cancellable = true)
     private static void arcadiabridge$blockChat(ServerPlayer player, String plain, Component decorated,
                                                 CallbackInfoReturnable<Component> cir) {
-        if (ChatGuard.shouldBlock(player)) {
+        if (ChatGuard.shouldBlockPublic(player, plain)) {
             cir.setReturnValue(null);
         }
     }

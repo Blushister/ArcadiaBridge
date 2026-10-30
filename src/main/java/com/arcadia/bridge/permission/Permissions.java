@@ -37,6 +37,16 @@ public final class Permissions {
     public static final PermissionNode<Boolean> CHANNELS_MANAGE = staff("chat.channels.manage");
     /** Creer et cloturer des sondages. */
     public static final PermissionNode<Boolean> POLLS = staff("chat.polls");
+    /** Mode lent et verrou du chat ; ces regles ne s'appliquent pas a qui a cette permission. */
+    public static final PermissionNode<Boolean> CHAT_MODERATE = staff("chat.moderate");
+    /** Annonces automatiques (panel staff). */
+    public static final PermissionNode<Boolean> ANNOUNCEMENTS = staff("chat.announcements");
+    /** Mots filtres (panel staff). */
+    public static final PermissionNode<Boolean> CHAT_FILTER = staff("chat.filter");
+    /** Voir et traiter les signalements depuis le panel staff (mute et ban demandent aussi leur permission). */
+    public static final PermissionNode<Boolean> REPORTS = staff("chat.reports");
+    /** Mentionner tout le monde (@everyone, @tous). */
+    public static final PermissionNode<Boolean> MENTION_EVERYONE = staff("chat.mention.everyone");
     /** Dispense de verification Discord (personne par defaut). */
     public static final PermissionNode<Boolean> VERIFICATION_BYPASS = new PermissionNode<>(ArcadiaBridge.MOD_ID,
             "verification.bypass", PermissionTypes.BOOLEAN, (player, uuid, ctx) -> false);
@@ -50,7 +60,8 @@ public final class Permissions {
     }
 
     public static void register(PermissionGatherEvent.Nodes event) {
-        event.addNodes(BAN, MUTE, WARN, HISTORY, UNLINK, ADMIN, STAFF_CHAT, CHANNELS_MANAGE, POLLS, VERIFICATION_BYPASS);
+        event.addNodes(BAN, MUTE, WARN, HISTORY, UNLINK, ADMIN, STAFF_CHAT, CHANNELS_MANAGE, POLLS, CHAT_MODERATE,
+                ANNOUNCEMENTS, CHAT_FILTER, REPORTS, MENTION_EVERYONE, VERIFICATION_BYPASS);
     }
 
     /**

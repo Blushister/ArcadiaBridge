@@ -15,12 +15,14 @@ import com.arcadia.bridge.discord.DiscordLogs;
 import com.arcadia.bridge.i18n.Lang;
 import com.arcadia.bridge.permission.Permissions;
 import com.arcadia.bridge.sanction.SanctionService;
+import com.arcadia.bridge.moderation.StaffPanel;
 import com.arcadia.bridge.share.ShareCommands;
 import com.arcadia.bridge.share.Shares;
 import com.arcadia.bridge.tabs.ChatTabs;
 import com.arcadia.bridge.util.Text;
 import com.mojang.brigadier.context.ParsedCommandNode;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -84,7 +86,13 @@ public final class GameEvents {
         bridge.crossChat().onJoin(player);
         bridge.channels().onJoin(player);
         // Un peu apres l'arrivee : le client a eu le temps de s'annoncer (onglets d'ArcadiaChat).
-        bridge.runOnMainLater(() -> bridge.channels().deliverMail(player), 3000);
+        bridge.runOnMainLater(() -> {
+            bridge.channels().deliverMail(player);
+            // Sans ArcadiaChat, les messages epingles arrivent dans le chat (avec, en bandeau des la connexion).
+            if (!ChatTabs.supports(player) && !player.hasDisconnected()) {
+                bridge.moderation().sendPins(player);
+            }
+        }, 3000);
         bridge.ipGuard().onJoin(player);
     }
 
@@ -131,23 +139,25 @@ public final class GameEvents {
         if (event.isCanceled() && !ChatFormatterCompat.rebroadcastsChat()) {
             return;
         }
+        ServerPlayer player = event.getPlayer();
+        var moderation = bridge.moderation();
+        moderation.onPublicChat(player, event.getRawText());
+        // Mots masques et @everyone desamorce, partout ou le message part (autres serveurs, Discord).
+        String raw = moderation.clean(player, event.getRawText());
         if (!BridgeConfig.CHAT_TO_DISCORD.get() || !bridge.discord().isReady()) {
-            String prefixOnly = BridgeConfig.CHAT_LUCKPERMS_PREFIX.get()
-                    ? LuckPermsHook.prefix(event.getPlayer().getUUID()) : "";
-            bridge.crossChat().publish(event.getPlayer(), prefixOnly, event.getRawText(),
-                    ChatFormatterCompat.format(event.getPlayer(), event.getMessage())
-                            .map(line -> Shares.apply(line, event.getPlayer())));
+            String prefixOnly = BridgeConfig.CHAT_LUCKPERMS_PREFIX.get() ? LuckPermsHook.prefix(player.getUUID()) : "";
+            bridge.crossChat().publish(player, prefixOnly, raw, ChatFormatterCompat.format(player, event.getMessage())
+                    .map(line -> moderation.clean(player, Shares.apply(line, player))));
             return;
         }
-        ServerPlayer player = event.getPlayer();
         String rawPrefix = BridgeConfig.CHAT_LUCKPERMS_PREFIX.get() ? LuckPermsHook.prefix(player.getUUID()) : "";
         String prefix = Text.forDiscord(rawPrefix);
         String name = Text.forDiscord(player.getGameProfile().getName());
-        String message = Text.forDiscord(Shares.forDiscord(event.getRawText(), player));
+        String message = Text.forDiscord(Shares.forDiscord(raw, player));
 
         // Les autres serveurs recoivent le message ; leur propre salon Discord s'en charge de leur cote.
-        bridge.crossChat().publish(player, rawPrefix, event.getRawText(),
-                ChatFormatterCompat.format(player, event.getMessage()).map(line -> Shares.apply(line, player)));
+        bridge.crossChat().publish(player, rawPrefix, raw, ChatFormatterCompat.format(player, event.getMessage())
+                .map(line -> moderation.clean(player, Shares.apply(line, player))));
 
         if (ChatWebhook.isConfigured()) {
             // Avec un webhook, le pseudo et la tete du joueur portent l'information : pas de mise en forme.
@@ -166,6 +176,7 @@ public final class GameEvents {
     }
 
     private static final Set<String> MSG_COMMANDS = Set.of("msg", "tell", "w");
+    private static final Set<String> WORD_CHECKED_COMMANDS = Set.of("msg", "tell", "w", "me", "teammsg", "tm");
 
     /**
      * /msg a un joueur qui n'est pas sur ce serveur mais connecte a un autre serveur Arcadia : le message lui
@@ -224,15 +235,24 @@ public final class GameEvents {
         if (player == null) {
             return;
         }
-        var mute = bridge.cache().activeMute(player.getUUID());
-        if (mute.isEmpty()) {
-            return;
-        }
         List<ParsedCommandNode<CommandSourceStack>> nodes = event.getParseResults().getContext().getNodes();
         if (nodes.isEmpty()) {
             return;
         }
         String root = nodes.get(0).getNode().getName().toLowerCase(Locale.ROOT);
+        // Messages prives et /me : les mots bloques du panel staff s'y appliquent aussi.
+        if (WORD_CHECKED_COMMANDS.contains(root)) {
+            Component refused = bridge.moderation().checkWords(player, event.getParseResults().getReader().getString());
+            if (refused != null) {
+                event.setCanceled(true);
+                player.sendSystemMessage(refused);
+                return;
+            }
+        }
+        var mute = bridge.cache().activeMute(player.getUUID());
+        if (mute.isEmpty()) {
+            return;
+        }
         if (BridgeConfig.SANCTIONS_MUTE_BLOCKED_COMMANDS.get().contains(root)) {
             event.setCanceled(true);
             player.sendSystemMessage(SanctionService.muteMessage(mute.get()));
@@ -277,6 +297,7 @@ public final class GameEvents {
         }
         tickCounter = 0;
         bridge.verification().tick();
+        bridge.moderation().tick();
         bridge.updateOnlineSnapshot();
     }
 }

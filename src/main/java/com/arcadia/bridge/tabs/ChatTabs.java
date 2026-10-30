@@ -10,6 +10,7 @@ import com.arcadia.bridge.Bridge;
 import com.arcadia.bridge.chat.ChatChannels;
 import com.arcadia.bridge.chat.CrossServerChat;
 import com.arcadia.bridge.compat.FtbTeamsCompat;
+import com.arcadia.bridge.moderation.StaffPanel;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.data.Models.ServerStatus;
 import com.arcadia.bridge.permission.Permissions;
@@ -72,6 +73,11 @@ public final class ChatTabs {
 
     /** Derniere liste de serveurs envoyee aux clients. */
     private static volatile List<TabsProtocol.ServerInfo> servers = List.of();
+
+    /** Serveurs Arcadia en ligne (derniere synchronisation). */
+    public static List<TabsProtocol.ServerInfo> servers() {
+        return servers;
+    }
     /** Joueurs connectes aux autres serveurs, envoyes aux clients pour la completion des pseudos. */
     private static volatile List<String> remotePlayers = List.of();
 
@@ -99,6 +105,10 @@ public final class ChatTabs {
                 (payload, context) -> { });
         registrar.playToServer(TabsProtocol.ChannelsRequest.TYPE, TabsProtocol.ChannelsRequest.STREAM_CODEC,
                 ChatTabs::onChannelsRequest);
+        registrar.playToServer(TabsProtocol.PanelRequest.TYPE, TabsProtocol.PanelRequest.STREAM_CODEC, StaffPanel::onRequest);
+        registrar.playToServer(TabsProtocol.PanelAction.TYPE, TabsProtocol.PanelAction.STREAM_CODEC, StaffPanel::onAction);
+        registrar.playToClient(TabsProtocol.PanelData.TYPE, TabsProtocol.PanelData.STREAM_CODEC, (payload, context) -> { });
+        registrar.playToClient(TabsProtocol.Pinned.TYPE, TabsProtocol.Pinned.STREAM_CODEC, (payload, context) -> { });
     }
 
     /**
@@ -193,6 +203,7 @@ public final class ChatTabs {
         PacketDistributor.sendToPlayer(player, new TabsProtocol.Servers(servers));
         PacketDistributor.sendToPlayer(player, new TabsProtocol.RemotePlayers(remotePlayers));
         sendChannels(player);
+        sendPinned(player, bridge.moderation().pinnedLines());
     }
 
     public static void onLogout(ServerPlayer player) {
@@ -205,6 +216,13 @@ public final class ChatTabs {
             if (bridge != null && CrossServerChat.isEnabled()) {
                 bridge.channels().publishTyping(player.getGameProfile().getName(), false);
             }
+        }
+    }
+
+    /** Messages epingles en haut du chat. */
+    public static void sendPinned(ServerPlayer player, List<Component> lines) {
+        if (supports(player)) {
+            PacketDistributor.sendToPlayer(player, new TabsProtocol.Pinned(lines));
         }
     }
 

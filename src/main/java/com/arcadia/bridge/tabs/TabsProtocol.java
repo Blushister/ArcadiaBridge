@@ -284,4 +284,132 @@ public final class TabsProtocol {
             return TYPE;
         }
     }
+
+    // ---------------------------------------------------------------- panel staff
+
+    /** Client -> serveur : ouverture (ou relecture) du panel staff ; le serveur repond par {@link PanelData}. */
+    public record PanelRequest() implements CustomPacketPayload {
+        public static final PanelRequest INSTANCE = new PanelRequest();
+        public static final Type<PanelRequest> TYPE = new Type<>(id("panel_request"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, PanelRequest> STREAM_CODEC = StreamCodec.unit(INSTANCE);
+
+        @Override
+        public Type<PanelRequest> type() {
+            return TYPE;
+        }
+    }
+
+    /** Mode lent (secondes, 0 = non) et verrou d'un serveur, ou de tous ({@code scope} = "*"). */
+    public record RuleEntry(String scope, int slowSeconds, boolean locked) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, RuleEntry> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, RuleEntry::scope,
+                ByteBufCodecs.VAR_INT, RuleEntry::slowSeconds,
+                ByteBufCodecs.BOOL, RuleEntry::locked,
+                RuleEntry::new);
+    }
+
+    /** Annonce automatique ({@code servers} : "*" ou identifiants separes par des virgules). */
+    public record AnnouncementEntry(long id, String message, int intervalMinutes, String servers, boolean discord,
+                                    boolean enabled) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, AnnouncementEntry> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_LONG, AnnouncementEntry::id,
+                ByteBufCodecs.STRING_UTF8, AnnouncementEntry::message,
+                ByteBufCodecs.VAR_INT, AnnouncementEntry::intervalMinutes,
+                ByteBufCodecs.STRING_UTF8, AnnouncementEntry::servers,
+                ByteBufCodecs.BOOL, AnnouncementEntry::discord,
+                ByteBufCodecs.BOOL, AnnouncementEntry::enabled,
+                AnnouncementEntry::new);
+    }
+
+    /** Mot filtre : masque (etoiles) ou message bloque. */
+    public record FilterEntry(String word, boolean block) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, FilterEntry> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, FilterEntry::word,
+                ByteBufCodecs.BOOL, FilterEntry::block,
+                FilterEntry::new);
+    }
+
+    /** Message epingle d'une portee ("*" ou identifiant de serveur). */
+    public record PinEntry(String scope, String message) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, PinEntry> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, PinEntry::scope,
+                ByteBufCodecs.STRING_UTF8, PinEntry::message,
+                PinEntry::new);
+    }
+
+    /** Signalement en attente ({@code count} : nombre de signalements regroupes). */
+    public record ReportEntry(long id, String target, String reporter, String reason, String serverId, long createdAt,
+                              int count) {
+        // Ecrit a la main : StreamCodec.composite s'arrete a six champs.
+        public static final StreamCodec<RegistryFriendlyByteBuf, ReportEntry> STREAM_CODEC = StreamCodec.of(
+                (buf, r) -> {
+                    buf.writeVarLong(r.id());
+                    buf.writeUtf(r.target());
+                    buf.writeUtf(r.reporter());
+                    buf.writeUtf(r.reason());
+                    buf.writeUtf(r.serverId());
+                    buf.writeVarLong(r.createdAt());
+                    buf.writeVarInt(r.count());
+                },
+                buf -> new ReportEntry(buf.readVarLong(), buf.readUtf(), buf.readUtf(), buf.readUtf(), buf.readUtf(),
+                        buf.readVarLong(), buf.readVarInt()));
+    }
+
+    /**
+     * Serveur -> client : contenu du panel staff. {@code access} : sections permises au joueur ({@link #PANEL_RULES},
+     * {@link #PANEL_ANNOUNCEMENTS}, {@link #PANEL_FILTERS}, {@link #PANEL_PINS}, {@link #PANEL_REPORTS}).
+     */
+    public record PanelData(int access, List<ServerInfo> servers, List<RuleEntry> rules,
+                            List<AnnouncementEntry> announcements, List<FilterEntry> filters, List<PinEntry> pins,
+                            List<ReportEntry> reports) implements CustomPacketPayload {
+        public static final Type<PanelData> TYPE = new Type<>(id("panel_data"));
+        // Ecrit a la main : StreamCodec.composite s'arrete a six champs.
+        public static final StreamCodec<RegistryFriendlyByteBuf, PanelData> STREAM_CODEC = StreamCodec.of(
+                (buf, d) -> {
+                    buf.writeVarInt(d.access());
+                    ServerInfo.STREAM_CODEC.apply(ByteBufCodecs.list()).encode(buf, d.servers());
+                    RuleEntry.STREAM_CODEC.apply(ByteBufCodecs.list()).encode(buf, d.rules());
+                    AnnouncementEntry.STREAM_CODEC.apply(ByteBufCodecs.list()).encode(buf, d.announcements());
+                    FilterEntry.STREAM_CODEC.apply(ByteBufCodecs.list()).encode(buf, d.filters());
+                    PinEntry.STREAM_CODEC.apply(ByteBufCodecs.list()).encode(buf, d.pins());
+                    ReportEntry.STREAM_CODEC.apply(ByteBufCodecs.list()).encode(buf, d.reports());
+                },
+                buf -> new PanelData(buf.readVarInt(),
+                        ServerInfo.STREAM_CODEC.apply(ByteBufCodecs.list()).decode(buf),
+                        RuleEntry.STREAM_CODEC.apply(ByteBufCodecs.list()).decode(buf),
+                        AnnouncementEntry.STREAM_CODEC.apply(ByteBufCodecs.list()).decode(buf),
+                        FilterEntry.STREAM_CODEC.apply(ByteBufCodecs.list()).decode(buf),
+                        PinEntry.STREAM_CODEC.apply(ByteBufCodecs.list()).decode(buf),
+                        ReportEntry.STREAM_CODEC.apply(ByteBufCodecs.list()).decode(buf)));
+
+        @Override
+        public Type<PanelData> type() {
+            return TYPE;
+        }
+    }
+
+    public static final int PANEL_RULES = 1;
+    public static final int PANEL_ANNOUNCEMENTS = 2;
+    public static final int PANEL_FILTERS = 4;
+    public static final int PANEL_PINS = 8;
+    public static final int PANEL_REPORTS = 16;
+
+        @Override
+        public Type<PanelAction> type() {
+            return TYPE;
+        }
+    }
+
+    /** Serveur -> client : messages epingles en haut du chat (liste vide : aucun). */
+    public record Pinned(List<Component> lines) implements CustomPacketPayload {
+        public static final Type<Pinned> TYPE = new Type<>(id("pinned"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, Pinned> STREAM_CODEC = StreamCodec.composite(
+                ComponentSerialization.STREAM_CODEC.apply(ByteBufCodecs.list(4)), Pinned::lines,
+                Pinned::new);
+
+        @Override
+        public Type<Pinned> type() {
+            return TYPE;
+        }
+    }
 }

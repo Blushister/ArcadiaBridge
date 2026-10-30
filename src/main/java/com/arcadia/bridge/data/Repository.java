@@ -15,6 +15,10 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
+import com.arcadia.bridge.data.Models.Announcement;
+import com.arcadia.bridge.data.Models.ChatFilter;
+import com.arcadia.bridge.data.Models.ChatPin;
+import com.arcadia.bridge.data.Models.ChatRule;
 import com.arcadia.bridge.data.Models.Link;
 import com.arcadia.bridge.data.Models.ChannelInfo;
 import com.arcadia.bridge.data.Models.ChatLine;
@@ -47,6 +51,10 @@ public final class Repository {
     private final String channelMembers;
     private final String mail;
     private final String shares;
+    private final String chatRules;
+    private final String announcements;
+    private final String chatFilters;
+    private final String chatPins;
     private final String polls;
     private final String pollVotes;
 
@@ -63,6 +71,10 @@ public final class Repository {
         this.channelMembers = db.t("channel_members");
         this.mail = db.t("mail");
         this.shares = db.t("shares");
+        this.chatRules = db.t("chat_rules");
+        this.announcements = db.t("announcements");
+        this.chatFilters = db.t("chat_filters");
+        this.chatPins = db.t("chat_pins");
         this.polls = db.t("polls");
         this.pollVotes = db.t("poll_votes");
     }
@@ -189,6 +201,23 @@ public final class Repository {
                     return rs.next() ? Optional.of(readReport(rs)) : Optional.empty();
                 }
             }
+        });
+    }
+
+    /** Signalements en attente, les plus recents d'abord (panel staff). */
+    public CompletableFuture<List<Report>> openReports(int limit) {
+        return db.async(c -> {
+            List<Report> list = new ArrayList<>();
+            try (PreparedStatement ps = c.prepareStatement("SELECT " + REPORT_COLUMNS + " FROM " + reports
+                    + " WHERE status = 'OPEN' ORDER BY created_at DESC LIMIT ?")) {
+                ps.setInt(1, limit);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        list.add(readReport(rs));
+                    }
+                }
+            }
+            return list;
         });
     }
 
@@ -985,6 +1014,164 @@ public final class Repository {
         });
     }
 
+    // ---------------------------------------------------------------- moderation du chat (panel staff)
+
+    /** Tout ce que le panel staff regle : regles du chat, annonces automatiques et mots filtres. */
+    public record ModerationData(List<ChatRule> rules, List<Announcement> announcements, List<ChatFilter> filters,
+                                 List<ChatPin> pins) {
+    }
+
+    public CompletableFuture<ModerationData> loadModeration() {
+        return db.async(c -> {
+            List<ChatRule> rules = new ArrayList<>();
+            List<Announcement> list = new ArrayList<>();
+            List<ChatFilter> filters = new ArrayList<>();
+            try (Statement s = c.createStatement()) {
+                try (ResultSet rs = s.executeQuery("SELECT scope, slow_seconds, locked FROM " + chatRules)) {
+                    while (rs.next()) {
+                        rules.add(new ChatRule(rs.getString(1), rs.getInt(2), rs.getBoolean(3)));
+                    }
+                }
+                try (ResultSet rs = s.executeQuery("SELECT id, message, interval_minutes, servers, discord, enabled FROM "
+                        + announcements + " ORDER BY id")) {
+                    while (rs.next()) {
+                        list.add(new Announcement(rs.getLong(1), rs.getString(2), rs.getInt(3), rs.getString(4),
+                                rs.getBoolean(5), rs.getBoolean(6)));
+                    }
+                }
+                try (ResultSet rs = s.executeQuery("SELECT word, block FROM " + chatFilters + " ORDER BY word")) {
+                    while (rs.next()) {
+                        filters.add(new ChatFilter(rs.getString(1), rs.getBoolean(2)));
+                    }
+                }
+            }
+            List<ChatPin> pins = new ArrayList<>();
+            try (Statement s = c.createStatement();
+                 ResultSet rs = s.executeQuery("SELECT scope, message FROM " + chatPins + " ORDER BY scope")) {
+                while (rs.next()) {
+                    pins.add(new ChatPin(rs.getString(1), rs.getString(2)));
+                }
+            }
+            return new ModerationData(rules, list, filters, pins);
+        });
+    }
+
+    /** Mode lent et verrou d'un serveur (ou de tous, "*") ; une regle sans effet est supprimee. */
+    public CompletableFuture<Void> setChatRule(String scope, int slowSeconds, boolean locked, String by) {
+        return db.async(c -> {
+            if (slowSeconds <= 0 && !locked) {
+                try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + chatRules + " WHERE scope = ?")) {
+                    ps.setString(1, scope);
+                    ps.executeUpdate();
+                }
+                return null;
+            }
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + chatRules
+                    + " (scope, slow_seconds, locked, updated_by, updated_at) VALUES (?, ?, ?, ?, ?)"
+                    + " ON DUPLICATE KEY UPDATE slow_seconds = VALUES(slow_seconds), locked = VALUES(locked),"
+                    + " updated_by = VALUES(updated_by), updated_at = VALUES(updated_at)")) {
+                ps.setString(1, scope);
+                ps.setInt(2, Math.max(0, slowSeconds));
+                ps.setBoolean(3, locked);
+                ps.setString(4, by);
+                ps.setLong(5, System.currentTimeMillis());
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    public CompletableFuture<Void> addAnnouncement(String message, int intervalMinutes, String servers, boolean discord,
+                                                   String by) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + announcements
+                    + " (message, interval_minutes, servers, discord, enabled, created_by, created_at)"
+                    + " VALUES (?, ?, ?, ?, 1, ?, ?)")) {
+                ps.setString(1, message);
+                ps.setInt(2, intervalMinutes);
+                ps.setString(3, servers);
+                ps.setBoolean(4, discord);
+                ps.setString(5, by);
+                ps.setLong(6, System.currentTimeMillis());
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    public CompletableFuture<Void> setAnnouncementEnabled(long id, boolean enabled) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("UPDATE " + announcements + " SET enabled = ? WHERE id = ?")) {
+                ps.setBoolean(1, enabled);
+                ps.setLong(2, id);
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    public CompletableFuture<Void> deleteAnnouncement(long id) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + announcements + " WHERE id = ?")) {
+                ps.setLong(1, id);
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    /** Ajoute un mot filtre, ou change son action s'il existe deja. */
+    public CompletableFuture<Void> setChatFilter(String word, boolean block, String by) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + chatFilters
+                    + " (word, block, created_by, created_at) VALUES (?, ?, ?, ?)"
+                    + " ON DUPLICATE KEY UPDATE block = VALUES(block)")) {
+                ps.setString(1, word);
+                ps.setBoolean(2, block);
+                ps.setString(3, by);
+                ps.setLong(4, System.currentTimeMillis());
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    /** Epingle un message (remplace celui de la meme portee). */
+    public CompletableFuture<Void> setChatPin(String scope, String message, String by) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + chatPins
+                    + " (scope, message, updated_by, updated_at) VALUES (?, ?, ?, ?)"
+                    + " ON DUPLICATE KEY UPDATE message = VALUES(message), updated_by = VALUES(updated_by),"
+                    + " updated_at = VALUES(updated_at)")) {
+                ps.setString(1, scope);
+                ps.setString(2, message);
+                ps.setString(3, by);
+                ps.setLong(4, System.currentTimeMillis());
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    public CompletableFuture<Void> deleteChatPin(String scope) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + chatPins + " WHERE scope = ?")) {
+                ps.setString(1, scope);
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    public CompletableFuture<Void> deleteChatFilter(String word) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + chatFilters + " WHERE word = ?")) {
+                ps.setString(1, word);
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
 
     // ---------------------------------------------------------------- messages hors ligne
 

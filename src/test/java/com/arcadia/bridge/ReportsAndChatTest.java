@@ -179,6 +179,33 @@ class ReportsAndChatTest {
     }
 
     @Test
+    @DisplayName("Panel staff : regles du chat, annonces et mots filtres")
+    void moderationStorage() {
+        repo.setChatRule("*", 5, false, "Dev").join();
+        repo.setChatRule("test1", 0, true, "Dev").join();
+        repo.addAnnouncement("&6Votez pour le serveur !", 30, "*", true, "Dev").join();
+        repo.setChatFilter("mot*", true, "Dev").join();
+        repo.setChatFilter("mot*", false, "Dev").join();
+        var data = repo.loadModeration().join();
+        assertEquals(2, data.rules().size());
+        assertEquals(1, data.announcements().size());
+        assertTrue(data.announcements().get(0).targets("test2"), "\"*\" vise tous les serveurs");
+        assertEquals(List.of(new com.arcadia.bridge.data.Models.ChatFilter("mot*", false)), data.filters(),
+                "le second reglage remplace le premier");
+
+        // Une regle sans effet est retiree ; annonce desactivee puis supprimee ; filtre retire.
+        repo.setChatRule("test1", 0, false, "Dev").join();
+        long id = data.announcements().get(0).id();
+        repo.setAnnouncementEnabled(id, false).join();
+        assertFalse(repo.loadModeration().join().announcements().get(0).enabled());
+        repo.deleteAnnouncement(id).join();
+        repo.deleteChatFilter("mot*").join();
+        var after = repo.loadModeration().join();
+        assertEquals(1, after.rules().size());
+        assertTrue(after.announcements().isEmpty() && after.filters().isEmpty());
+    }
+
+    @Test
     @DisplayName("Messages hors ligne : depot, boite limitee, remise unique et purge")
     void offlineMail() {
         UUID absent = UUID.randomUUID();
