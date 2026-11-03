@@ -50,10 +50,12 @@ public abstract class ServerPlayerChatMixin {
         // Correspondant : celui a qui on ecrit (message sortant), sinon celui qui ecrit.
         String partner = "";
         if (isPrivate) {
-            partner = boundType.targetName().map(Component::getString).orElse(boundType.name().getString());
+            partner = ChatTabs.realName(self.server,
+                    boundType.targetName().map(Component::getString).orElse(boundType.name().getString()));
         }
         // Auteur : soi-meme pour un message prive sortant, sinon celui dont le pseudo accompagne le message.
-        String sender = boundType.targetName().isPresent() ? self.getGameProfile().getName() : boundType.name().getString();
+        String sender = boundType.targetName().isPresent() ? self.getGameProfile().getName()
+                : ChatTabs.realName(self.server, boundType.name().getString());
         if (isPrivate) {
             Replies.remember(self, partner);
         }

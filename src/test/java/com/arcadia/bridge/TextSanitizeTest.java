@@ -13,6 +13,19 @@ import org.junit.jupiter.api.Test;
 class TextSanitizeTest {
 
     @Test
+    @DisplayName("Le pseudo reel se retrouve derriere le grade du nom d'affichage")
+    void playerNameBehindRank() {
+        var online = java.util.List.of("vyrriox", "Leirbag22", "Dev", "Dev2");
+        assertEquals("vyrriox", Text.playerName("[Owner]  vyrriox", online));
+        assertEquals("Dev2", Text.playerName("[P] Dev2", online), "le plus long, pas Dev");
+        assertEquals("Dev", Text.playerName("Dev", online));
+        assertEquals("Dev", Text.playerName("\u00a76[Admin] \u00a7fDev", online), "codes couleur retires");
+        assertEquals("Absent", Text.playerName("[Helper] Absent", online), "hors ligne : dernier mot");
+        assertEquals("Server", Text.playerName("Server", online));
+        assertEquals("[Rcon]", Text.playerName("[Rcon]", online), "pas un pseudo : garde tel quel");
+    }
+
+    @Test
     @DisplayName("Un joueur ne peut pas afficher une mention de masse sur Discord")
     void massMentionsAreNeutralized() {
         assertFalse(Text.forDiscord("salut @everyone").contains("@everyone"));

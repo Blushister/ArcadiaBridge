@@ -58,6 +58,46 @@ public final class Text {
         return MENTIONS.matcher(text).replaceAll("@" + ZERO_WIDTH_SPACE);
     }
 
+    /**
+     * Pseudo reel derriere un nom d'affichage, qui peut porter un grade ("[Owner]  Dev") : le nom connu qu'il contient
+     * (le plus long s'il y en a plusieurs), sinon son dernier mot s'il a la forme d'un pseudo, sinon le nom tel quel.
+     */
+    public static String playerName(String display, Iterable<String> known) {
+        String clean = stripFormatting(display).trim();
+        String found = knownNameIn(clean, known);
+        if (!found.isEmpty()) {
+            return found;
+        }
+        String last = clean.substring(clean.lastIndexOf(' ') + 1);
+        return last.matches("[A-Za-z0-9_]{1,16}") ? last : clean;
+    }
+
+    /** Le nom connu present dans le texte comme mot entier (le plus long s'il y en a plusieurs), ou vide. */
+    public static String knownNameIn(String text, Iterable<String> known) {
+        String found = "";
+        for (String name : known) {
+            if (name.length() > found.length() && containsWord(text, name)) {
+                found = name;
+            }
+        }
+        return found;
+    }
+
+    /** {@code word} present dans {@code text}, sans lettre, chiffre ni "_" colle de part et d'autre. */
+    private static boolean containsWord(String text, String word) {
+        for (int i = text.indexOf(word); i >= 0; i = text.indexOf(word, i + 1)) {
+            int end = i + word.length();
+            if ((i == 0 || !isNameChar(text.charAt(i - 1))) && (end == text.length() || !isNameChar(text.charAt(end)))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isNameChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_';
+    }
+
     /** Remplace les variables {cle} ; args = cle1, valeur1, cle2, valeur2... */
     public static String fill(String template, Object... args) {
         String out = template;

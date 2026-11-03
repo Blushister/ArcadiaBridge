@@ -162,31 +162,19 @@ public final class ChatTabs {
         String text = line.getString();
         int colon = text.indexOf(':');
         String head = colon < 0 ? text : text.substring(0, colon);
-        String found = "";
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            String name = player.getGameProfile().getName();
-            if (name.length() > found.length() && containsWord(head, name)) {
-                found = name;
-            }
-        }
+        String found = Text.knownNameIn(head, onlineNames(server));
         lastLine = line;
         lastSender = found;
         return found;
     }
 
-    /** {@code word} present dans {@code text}, sans lettre, chiffre ni "_" colle de part et d'autre. */
-    private static boolean containsWord(String text, String word) {
-        for (int i = text.indexOf(word); i >= 0; i = text.indexOf(word, i + 1)) {
-            int end = i + word.length();
-            if ((i == 0 || !isNameChar(text.charAt(i - 1))) && (end == text.length() || !isNameChar(text.charAt(end)))) {
-                return true;
-            }
-        }
-        return false;
+    /** Pseudo reel derriere un nom d'affichage ("[Owner]  Dev" : grade pose par une equipe du tableau de scores). */
+    public static String realName(net.minecraft.server.MinecraftServer server, String display) {
+        return Text.playerName(display, onlineNames(server));
     }
 
-    private static boolean isNameChar(char c) {
-        return Character.isLetterOrDigit(c) || c == '_';
+    private static List<String> onlineNames(net.minecraft.server.MinecraftServer server) {
+        return server.getPlayerList().getPlayers().stream().map(player -> player.getGameProfile().getName()).toList();
     }
 
     /** Envoie une ligne a un joueur : etiquetee s'il a ArcadiaChat, en message systeme sinon. */
