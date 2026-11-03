@@ -12,7 +12,6 @@ import net.minecraft.commands.Commands;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.nbt.TagParser;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.SimpleMenuProvider;
@@ -60,18 +59,23 @@ public final class ShareCommands {
             boolean ender = "ender".equals(share.kind());
             SimpleContainer container = new SimpleContainer(ender ? 27 : 45);
             try {
-                CompoundTag root = TagParser.parseTag(share.data());
+                CompoundTag root = ShareData.decode(share.data());
                 ListTag items = root.getList("items", Tag.TAG_COMPOUND);
                 for (int i = 0; i < items.size(); i++) {
                     CompoundTag entry = items.getCompound(i);
                     int slot = entry.getInt("slot");
                     if (slot >= 0 && slot < container.getContainerSize()) {
-                        container.setItem(slot, ItemStack.parseOptional(player.registryAccess(), entry.getCompound("item")));
+                        // Objet illisible ici (mod absent de ce serveur, donnees invalides) : la case reste vide.
+                        try {
+                            container.setItem(slot, ItemStack.parseOptional(player.registryAccess(), entry.getCompound("item")));
+                        } catch (RuntimeException e) {
+                            LOGGER.warn("[ArcadiaBridge] Objet illisible dans le partage {} : {}", id, e.toString());
+                        }
                     }
                 }
             } catch (Exception e) {
                 LOGGER.warn("[ArcadiaBridge] Partage {} illisible : {}", id, e.toString());
-                player.sendSystemMessage(Lang.mc("share.expired"));
+                player.sendSystemMessage(Lang.mc("share.unreadable"));
                 return;
             }
             var title = Lang.mc(ender ? "share.ender.title" : "share.inventory.title", "name", share.owner());

@@ -61,8 +61,15 @@ public final class Shares {
 
     /** Un inventaire repartage peu apres renvoie vers la meme copie, sans en refaire une en base. */
     private static final long CONTAINER_REUSE_MS = 15_000;
-    /** Au-dela (objets moddes aux donnees enormes), l'inventaire n'est pas partage. */
-    private static final int MAX_SNAPSHOT_CHARS = 1_000_000;
+    /**
+     * Tailles reelles, non compressees : ces donnees repartent vers le client de celui qui ouvre l'inventaire, et un
+     * paquet trop gros l'expulserait. Au-dela de la limite par objet (sac plein...), l'objet reste visible sans son
+     * contenu ; au-dela de la limite totale, l'inventaire n'est pas partage.
+     */
+    private static final int MAX_SNAPSHOT_BYTES = 1_000_000;
+    private static final int MAX_ITEM_BYTES = 128 * 1024;
+    /** Au-dela, [item] montre le nom sans la fiche au survol : elle voyage dans la ligne de chat. */
+    private static final int MAX_HOVER_BYTES = 16 * 1024;
 
     private record SharedContainer(String id, boolean ender, long at) {
     }
@@ -173,13 +180,24 @@ public final class Shares {
             discord.put(Kind.ITEM, Lang.get("share.empty_hand.discord"));
             return;
         }
-        // getDisplayName : nom entre crochets, couleur de rarete, et la fiche complete au survol.
-        MutableComponent part = stack.getDisplayName().copy();
+        // getDisplayName : nom entre crochets, couleur de rarete, et la fiche complete au survol (si elle tient).
+        MutableComponent part = hoverFits(player, stack) ? stack.getDisplayName().copy()
+                : Component.literal("[").append(stack.getHoverName()).append("]").withStyle(stack.getRarity().color());
         if (stack.getCount() > 1) {
             part.append(Component.literal(" x" + stack.getCount()).withStyle(ChatFormatting.GRAY));
         }
         chat.put(Kind.ITEM, part);
         discord.put(Kind.ITEM, "[" + stack.getHoverName().getString() + (stack.getCount() > 1 ? " x" + stack.getCount() : "") + "]");
+    }
+
+    private static boolean hoverFits(ServerPlayer player, ItemStack stack) {
+        try {
+            return stack.save(player.registryAccess()) instanceof CompoundTag tag
+                    && ShareData.rawSize(tag) <= MAX_HOVER_BYTES;
+        } catch (RuntimeException e) {
+            LOGGER.warn("[ArcadiaBridge] Objet partage illisible ({}) : {}", stack.getItem(), e.toString());
+            return false;
+        }
     }
 
     // ---------------------------------------------------------------- [inv] et [ender]
@@ -199,14 +217,22 @@ public final class Shares {
         if (last != null && last.ender() == ender && now - last.at() < CONTAINER_REUSE_MS) {
             id = last.id();
         } else {
-            String data = snapshot(player, ender);
-            if (data.length() > MAX_SNAPSHOT_CHARS) {
+            CompoundTag snapshot = snapshot(player, ender);
+            if (ShareData.rawSize(snapshot) > MAX_SNAPSHOT_BYTES) {
                 chat.put(kind, Lang.mc("share.unavailable"));
                 return;
             }
+            String data = ShareData.encode(snapshot);
             id = newId();
             repo.saveShare(id, name, ender ? "ender" : "inv", data).exceptionally(error -> {
-                LOGGER.warn("[ArcadiaBridge] Partage d'inventaire non enregistre : {}", error.toString());
+                LOGGER.warn("[ArcadiaBridge] Partage d'inventaire non enregistre ({} caracteres) : {}", data.length(),
+                        error.toString());
+                // Le lien ne menera a rien : son auteur le sait, et son prochain partage ne le reutilise pas.
+                LAST_CONTAINER.remove(player.getUUID());
+                Bridge bridge = Bridge.get();
+                if (bridge != null) {
+                    bridge.runOnMain(() -> player.sendSystemMessage(Lang.mc("share.save_failed")));
+                }
                 return null;
             });
             LAST_CONTAINER.put(player.getUUID(), new SharedContainer(id, ender, now));
@@ -217,8 +243,8 @@ public final class Shares {
                 .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/partage voir " + id))));
     }
 
-    /** Contenu copie (inventaire : objets, armure, seconde main ; coffre de l'Ender) en SNBT. */
-    private static String snapshot(ServerPlayer player, boolean ender) {
+    /** Contenu copie (inventaire : objets, armure, seconde main ; coffre de l'Ender), pret pour la base. */
+    private static CompoundTag snapshot(ServerPlayer player, boolean ender) {
         var registries = player.registryAccess();
         ListTag list = new ListTag();
         if (ender) {
@@ -242,15 +268,28 @@ public final class Shares {
         }
         CompoundTag root = new CompoundTag();
         root.put("items", list);
-        return root.toString();
+        return root;
     }
 
     private static void add(ListTag list, int slot, ItemStack stack, HolderLookup.Provider registries) {
-        if (!stack.isEmpty()) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        // Les donnees d'un objet modde peuvent faire echouer sa sauvegarde : il manquera seul, le message partira.
+        try {
+            CompoundTag item = (CompoundTag) stack.save(registries);
+            if (ShareData.rawSize(item) > MAX_ITEM_BYTES) {
+                CompoundTag light = new CompoundTag();
+                light.putString("id", item.getString("id"));
+                light.putInt("count", stack.getCount());
+                item = light;
+            }
             CompoundTag entry = new CompoundTag();
             entry.putInt("slot", slot);
-            entry.put("item", stack.save(registries));
+            entry.put("item", item);
             list.add(entry);
+        } catch (RuntimeException e) {
+            LOGGER.warn("[ArcadiaBridge] Objet ignore dans un partage ({}) : {}", stack.getItem(), e.toString());
         }
     }
 

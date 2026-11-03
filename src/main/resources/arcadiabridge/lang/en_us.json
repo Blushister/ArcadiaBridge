@@ -226,5 +226,7 @@
   "ignore.list": "&eIgnored players: &f{names}",
   "ignore.none": "&7You don't ignore anyone. Use /ignore <name>.",
   "reply.none": "&cNobody to reply to: you haven't exchanged any private message yet.",
-  "pin.line": "&e📌 &f{message}"
+  "pin.line": "&e📌 &f{message}",
+  "share.unreadable": "&cThis share could not be read.",
+  "share.save_failed": "&cYour inventory could not be shared: the link won't work."
 }
