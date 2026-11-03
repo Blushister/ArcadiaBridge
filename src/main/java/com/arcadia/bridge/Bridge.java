@@ -223,6 +223,7 @@ public final class Bridge {
             ipGuard.purge();
             repository.purgeMail(now - TimeUnit.DAYS.toMillis(BridgeConfig.CHAT_OFFLINE_DAYS.get()));
             repository.purgeShares(now - TimeUnit.MINUTES.toMillis(30));
+            repository.purgePendingTeleports(now);
         }
     }
 

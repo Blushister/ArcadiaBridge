@@ -20,6 +20,7 @@ import com.arcadia.bridge.data.Models.ChatFilter;
 import com.arcadia.bridge.data.Models.ChatPin;
 import com.arcadia.bridge.data.Models.ChatRule;
 import com.arcadia.bridge.data.Models.Link;
+import com.arcadia.bridge.data.Models.PendingTeleport;
 import com.arcadia.bridge.data.Models.ChannelInfo;
 import com.arcadia.bridge.data.Models.ChatLine;
 import com.arcadia.bridge.data.Models.JoinResult;
@@ -55,6 +56,7 @@ public final class Repository {
     private final String announcements;
     private final String chatFilters;
     private final String ignores;
+    private final String pendingTeleports;
     private final String chatPins;
     private final String polls;
     private final String pollVotes;
@@ -76,6 +78,7 @@ public final class Repository {
         this.announcements = db.t("announcements");
         this.chatFilters = db.t("chat_filters");
         this.ignores = db.t("ignores");
+        this.pendingTeleports = db.t("pending_teleports");
         this.chatPins = db.t("chat_pins");
         this.polls = db.t("polls");
         this.pollVotes = db.t("poll_votes");
@@ -1169,6 +1172,58 @@ public final class Repository {
         return db.async(c -> {
             try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + chatFilters + " WHERE word = ?")) {
                 ps.setString(1, word);
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    // ---------------------------------------------------------------- /tp vers un autre serveur
+
+    public CompletableFuture<Void> savePendingTeleport(PendingTeleport pending) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO " + pendingTeleports
+                    + " (uuid, target, spectator, expires_at) VALUES (?, ?, ?, ?)"
+                    + " ON DUPLICATE KEY UPDATE target = VALUES(target), spectator = VALUES(spectator),"
+                    + " expires_at = VALUES(expires_at)")) {
+                ps.setString(1, pending.uuid().toString());
+                ps.setString(2, pending.target());
+                ps.setBoolean(3, pending.spectator());
+                ps.setLong(4, pending.expiresAt());
+                ps.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    /** Arrivee attendue d'un joueur, retiree de la base (elle ne sert qu'une fois) ; null si aucune, ou perimee. */
+    public CompletableFuture<PendingTeleport> takePendingTeleport(UUID uuid, long now) {
+        return db.transaction(c -> {
+            PendingTeleport found = null;
+            try (PreparedStatement ps = c.prepareStatement("SELECT target, spectator, expires_at FROM " + pendingTeleports
+                    + " WHERE uuid = ? FOR UPDATE")) {
+                ps.setString(1, uuid.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        found = new PendingTeleport(uuid, rs.getString(1), rs.getBoolean(2), rs.getLong(3));
+                    }
+                }
+            }
+            if (found == null) {
+                return null;
+            }
+            try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + pendingTeleports + " WHERE uuid = ?")) {
+                ps.setString(1, uuid.toString());
+                ps.executeUpdate();
+            }
+            return found.expiresAt() >= now ? found : null;
+        });
+    }
+
+    public CompletableFuture<Void> purgePendingTeleports(long now) {
+        return db.async(c -> {
+            try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + pendingTeleports + " WHERE expires_at < ?")) {
+                ps.setLong(1, now);
                 ps.executeUpdate();
             }
             return null;

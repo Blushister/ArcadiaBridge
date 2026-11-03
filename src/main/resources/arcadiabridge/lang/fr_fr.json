@@ -228,5 +228,10 @@
   "reply.none": "&cPersonne à qui répondre : tu n'as encore échangé aucun message privé.",
   "pin.line": "&e📌 &f{message}",
   "share.unreadable": "&cCe partage n'a pas pu être lu.",
-  "share.save_failed": "&cTon inventaire n'a pas pu être partagé : le lien ne fonctionnera pas."
+  "share.save_failed": "&cTon inventaire n'a pas pu être partagé : le lien ne fonctionnera pas.",
+  "teleport.transfer": "&7Direction {name}, sur {server}...",
+  "teleport.gone": "&c{name} n'est plus connecté à un autre serveur.",
+  "teleport.excluded": "&cLa téléportation vers {server} n'est pas autorisée.",
+  "teleport.no_address": "&cAdresse de {server} inconnue : téléportation impossible.",
+  "teleport.arrived_gone": "&e{name} s'est déconnecté entre-temps : tu arrives sans téléportation."
 }

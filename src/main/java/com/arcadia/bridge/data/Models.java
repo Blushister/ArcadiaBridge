@@ -97,6 +97,10 @@ public final class Models {
     public record ChatPin(String scope, String message) {
     }
 
+    /** Arrivee attendue apres un /tp vers un autre serveur : qui rejoindre, et s'il etait spectateur en partant. */
+    public record PendingTeleport(UUID uuid, String target, boolean spectator, long expiresAt) {
+    }
+
     /** Mot filtre : masque par des etoiles, ou message bloque. */
     public record ChatFilter(String word, boolean block) {
     }

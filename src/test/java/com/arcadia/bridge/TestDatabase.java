@@ -51,7 +51,7 @@ final class TestDatabase {
             try (Statement s = c.createStatement()) {
                 for (String table : new String[]{"sanctions", "codes", "links", "players", "reports", "chat", "servers",
                         "channel_members", "channels", "mail", "shares",
-                        "poll_votes", "polls", "chat_rules", "announcements", "chat_filters", "ignores"}) {
+                        "poll_votes", "polls", "chat_rules", "announcements", "chat_filters", "ignores", "chat_pins", "pending_teleports"}) {
                     s.execute("DROP TABLE IF EXISTS " + prefix + table);
                 }
             }

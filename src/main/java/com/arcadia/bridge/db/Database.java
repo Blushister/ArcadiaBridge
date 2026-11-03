@@ -315,6 +315,11 @@ public final class Database implements AutoCloseable {
                         + "message VARCHAR(256) NOT NULL,"
                         + "updated_by VARCHAR(16) NOT NULL,"
                         + "updated_at BIGINT NOT NULL)" + opts);
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("pending_teleports") + " ("
+                        + "uuid CHAR(36) NOT NULL PRIMARY KEY,"
+                        + "target VARCHAR(16) NOT NULL,"
+                        + "spectator TINYINT(1) NOT NULL DEFAULT 0,"
+                        + "expires_at BIGINT NOT NULL)" + opts);
                 s.execute("CREATE TABLE IF NOT EXISTS " + t("ignores") + " ("
                         + "uuid CHAR(36) NOT NULL,"
                         + "ignored_uuid CHAR(36) NOT NULL,"

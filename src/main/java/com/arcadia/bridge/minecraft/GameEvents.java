@@ -21,6 +21,7 @@ import com.arcadia.bridge.moderation.StaffPanel;
 import com.arcadia.bridge.share.ShareCommands;
 import com.arcadia.bridge.share.Shares;
 import com.arcadia.bridge.tabs.ChatTabs;
+import com.arcadia.bridge.teleport.CrossServerTeleport;
 import com.arcadia.bridge.util.Text;
 import com.mojang.brigadier.context.ParsedCommandNode;
 import net.minecraft.commands.CommandSourceStack;
@@ -88,6 +89,7 @@ public final class GameEvents {
         bridge.crossChat().onJoin(player);
         bridge.channels().onJoin(player);
         Ignores.onJoin(player);
+        CrossServerTeleport.onJoin(bridge, player);
         // Un peu apres l'arrivee : le client a eu le temps de s'annoncer (onglets d'ArcadiaChat).
         bridge.runOnMainLater(() -> {
             bridge.channels().deliverMail(player);
@@ -110,6 +112,7 @@ public final class GameEvents {
         bridge.channels().onLeave(player);
         bridge.moderation().onLeave(player);
         Ignores.onLeave(player);
+        CrossServerTeleport.onLeave(player);
         Replies.onLeave(player);
         StaffPanel.onLeave(player);
         ChatTabs.onLogout(player);
@@ -228,6 +231,31 @@ public final class GameEvents {
                 bridge.channels().sendOffline(player, ref, text);
             }
         }));
+    }
+
+    /**
+     * /tp vers un joueur connecte a un autre serveur (Minecraft repondrait "aucune entite trouvee"). La permission reste
+     * celle du /tp : sans elle, l'analyse de la commande s'arrete avant, et il n'y a aucun noeud.
+     */
+    @SubscribeEvent(priority = EventPriority.LOW)
+    public static void onCrossServerTeleport(CommandEvent event) {
+        Bridge bridge = Bridge.get();
+        ServerPlayer player = event.getParseResults().getContext().getSource().getPlayer();
+        if (bridge == null || player == null || !CrossServerTeleport.enabled()
+                || CrossServerTeleport.excluded(Bridge.serverId())) {
+            return;
+        }
+        List<ParsedCommandNode<CommandSourceStack>> nodes = event.getParseResults().getContext().getNodes();
+        if (nodes.isEmpty() || !CrossServerTeleport.isTeleportCommand(nodes.get(0).getNode().getName())
+                || !event.getParseResults().getExceptions().isEmpty()) {
+            return;
+        }
+        String input = event.getParseResults().getReader().getString();
+        String target = CrossServerTeleport.remoteTarget(bridge, player, input.startsWith("/") ? input.substring(1) : input);
+        if (target != null) {
+            event.setCanceled(true);
+            CrossServerTeleport.request(bridge, player, target);
+        }
     }
 
     /** Commandes de message privees interdites aux joueurs mutes (/msg, /tell, /me...). */

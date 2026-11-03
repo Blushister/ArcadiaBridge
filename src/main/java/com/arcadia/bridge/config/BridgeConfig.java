@@ -64,6 +64,8 @@ public final class BridgeConfig {
     public static final ModConfigSpec.BooleanValue CHAT_SHARES;
     public static final ModConfigSpec.BooleanValue CHAT_TEAM;
     public static final ModConfigSpec.BooleanValue CHAT_NO_REPORTS;
+    public static final ModConfigSpec.BooleanValue TELEPORT_ENABLED;
+    public static final ModConfigSpec.ConfigValue<List<? extends String>> TELEPORT_EXCLUDED;
     public static final ModConfigSpec.BooleanValue CHAT_POLLS;
     public static final ModConfigSpec.IntValue CHAT_POLL_MINUTES;
     public static final ModConfigSpec.BooleanValue CHAT_OFFLINE_MESSAGES;
@@ -248,6 +250,14 @@ public final class BridgeConfig {
                 .defineInRange("offlineMessagesDays", 30, 1, 365);
         CHAT_OFFLINE_DISCORD = b.comment("Prevenir le joueur en message prive sur Discord, si son compte est lie.")
                 .define("offlineMessagesDiscord", true);
+        b.pop();
+
+        b.push("teleport");
+        TELEPORT_ENABLED = b.comment("/tp vers un joueur d'un autre serveur : le joueur change de serveur et arrive sur lui,",
+                        "spectateur s'il l'etait. Meme permission que /tp. Il faut accepts-transfers=true sur la destination.")
+                .define("crossServer", true);
+        TELEPORT_EXCLUDED = b.comment("Serveurs (serverId) exclus : ni depart ni arrivee d'un /tp entre serveurs.")
+                .defineListAllowEmpty("excludedServers", List.of("event", "test"), () -> "", o -> o instanceof String);
         b.pop();
 
         b.push("status");

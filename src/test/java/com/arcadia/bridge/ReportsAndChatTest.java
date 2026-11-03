@@ -206,6 +206,23 @@ class ReportsAndChatTest {
     }
 
     @Test
+    @DisplayName("/tp entre serveurs : l'arrivee ne sert qu'une fois, et se perime")
+    void pendingTeleport() {
+        long now = System.currentTimeMillis();
+        UUID staff = UUID.randomUUID();
+        var models = new com.arcadia.bridge.data.Models.PendingTeleport(staff, "Dev2", true, now + 60_000);
+        repo.savePendingTeleport(models).join();
+        var arrival = repo.takePendingTeleport(staff, now).join();
+        assertEquals("Dev2", arrival.target());
+        assertTrue(arrival.spectator());
+        assertEquals(null, repo.takePendingTeleport(staff, now).join(), "deja consommee");
+
+        repo.savePendingTeleport(models).join();
+        assertEquals(null, repo.takePendingTeleport(staff, now + 120_000).join(), "perimee");
+        assertEquals(null, repo.takePendingTeleport(staff, now).join(), "une arrivee perimee est aussi retiree");
+    }
+
+    @Test
     @DisplayName("/ignore : ajout, liste par joueur, retrait")
     void ignores() {
         UUID me = UUID.randomUUID();

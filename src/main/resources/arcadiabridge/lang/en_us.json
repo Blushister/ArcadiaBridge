@@ -228,5 +228,10 @@
   "reply.none": "&cNobody to reply to: you haven't exchanged any private message yet.",
   "pin.line": "&e📌 &f{message}",
   "share.unreadable": "&cThis share could not be read.",
-  "share.save_failed": "&cYour inventory could not be shared: the link won't work."
+  "share.save_failed": "&cYour inventory could not be shared: the link won't work.",
+  "teleport.transfer": "&7Heading to {name}, on {server}...",
+  "teleport.gone": "&c{name} is no longer connected to another server.",
+  "teleport.excluded": "&cTeleporting to {server} is not allowed.",
+  "teleport.no_address": "&cUnknown address for {server}: can't teleport.",
+  "teleport.arrived_gone": "&e{name} disconnected in the meantime: you arrive without teleporting."
 }
