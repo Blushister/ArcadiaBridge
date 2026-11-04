@@ -7,6 +7,7 @@ import com.arcadia.bridge.tabs.ChatTabs;
 import com.arcadia.bridge.tabs.TabsProtocol;
 import net.minecraft.network.chat.ChatType;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FilterMask;
 import net.minecraft.network.chat.OutgoingChatMessage;
 import net.minecraft.server.level.ServerPlayer;
 import org.spongepowered.asm.mixin.Mixin;
@@ -38,8 +39,11 @@ public abstract class ServerPlayerChatMixin {
     @Inject(method = "sendChatMessage", at = @At("HEAD"), cancellable = true)
     private void arcadiabridge$tagPlayerChat(OutgoingChatMessage message, boolean filtered, ChatType.Bound boundType,
                                              CallbackInfo ci) {
-        // Filtrage de texte actif : on laisse Minecraft appliquer ses regles.
-        if (filtered || !acceptsChatMessages()) {
+        // Le drapeau suit aussi le filtre de grossieretes du compte Microsoft, meme sans filtre sur le serveur :
+        // on ne laisse la main a Minecraft que si le message a vraiment ete filtre.
+        boolean reallyFiltered = filtered && message instanceof OutgoingChatMessage.Player player
+                && !FilterMask.PASS_THROUGH.equals(player.message().filterMask());
+        if (reallyFiltered || !acceptsChatMessages()) {
             return;
         }
         ServerPlayer self = (ServerPlayer) (Object) this;
