@@ -65,6 +65,15 @@ Sections principales de `config/arcadiabridge.toml` :
 | `reports` | salon des signalements, délai anti-abus, durées des boutons |
 | `security` | alerte de contournement de ban, conservation des empreintes d'adresse |
 
+**Traduction.** Les messages publics peuvent être traduits du français vers l'anglais et inversement : chaque joueur
+choisit sa langue dans ArcadiaChat. La traduction passe par l'API DeepL : créer un compte sur
+[deepl.com/pro-api](https://www.deepl.com/pro-api) (l'offre gratuite donne 500 000 caractères par mois) et renseigner
+la clé dans `[history] deeplKey`. Les messages privés ne sont jamais traduits ni envoyés à DeepL ; les mentions, emojis,
+objets partagés et liens restent tels quels ; les messages trop courts (« gg », « ok ») ne sont pas envoyés.
+
+**Vocal entre serveurs.** Avec Simple Voice Chat, les salons vocaux d'ArcadiaChat Rooms relient les joueurs de
+plusieurs serveurs grâce au relais `voicehub/` (Python 3, sans dépendance) : voir [`voicehub/README.md`](voicehub/README.md).
+
 **`presentation`** vaut `compact` (défaut) ou `riche`. En `compact`, tout est posté par le bot en une
 ligne. En `riche`, les messages des joueurs passent par un webhook (pseudo et tête de skin) et les
 annonces deviennent des encarts colorés. Le bot ne crée de webhook que dans ce second cas.

@@ -55,17 +55,23 @@ public final class DiscordListener extends ListenerAdapter {
         if (channelId == chatChannel && BridgeConfig.CHAT_TO_MINECRAFT.get()) {
             relayToMinecraft(event, message);
         }
+        // Chaque serveur a son bot : un seul conserve le message, les autres le reliront en base.
+        DiscordRooms.Room room = DiscordRooms.byChannelId(channelId);
+        if (room != null && Bridge.isPrimary()) {
+            String text = contentOf(message);
+            if (!text.isBlank()) {
+                String author = authorOf(event);
+                bridge.runOnMain(() -> bridge.history().recordDiscord(DiscordRooms.PREFIX + room.name(), author, text));
+            }
+        }
     }
 
     private void relayToMinecraft(MessageReceivedEvent event, Message message) {
-        String content = message.getContentDisplay();
-        if (!message.getAttachments().isEmpty()) {
-            content = (content + " " + Lang.get("chat.attachments", "count", message.getAttachments().size())).trim();
-        }
+        String content = contentOf(message);
         if (content.isBlank()) {
             return;
         }
-        String name = event.getMember() != null ? event.getMember().getEffectiveName() : event.getAuthor().getName();
+        String name = authorOf(event);
         String line = Text.fill(Text.colorize(BridgeConfig.CHAT_MINECRAFT_FORMAT.get()),
                 "name", Text.forMinecraft(name, 32),
                 "message", Text.forMinecraft(content, BridgeConfig.CHAT_MAX_LENGTH.get()));
@@ -75,7 +81,20 @@ public final class DiscordListener extends ListenerAdapter {
             for (ServerPlayer player : bridge.server().getPlayerList().getPlayers()) {
                 ChatTabs.deliver(player, TabsProtocol.CHANNEL_DISCORD, "", "", component);
             }
+            bridge.history().recordDiscord(TabsProtocol.CHANNEL_LOCAL, name, content);
         });
+    }
+
+    private static String contentOf(Message message) {
+        String content = message.getContentDisplay();
+        if (!message.getAttachments().isEmpty()) {
+            content = (content + " " + Lang.get("chat.attachments", "count", message.getAttachments().size())).trim();
+        }
+        return content;
+    }
+
+    private static String authorOf(MessageReceivedEvent event) {
+        return event.getMember() != null ? event.getMember().getEffectiveName() : event.getAuthor().getName();
     }
 
     /** "!verify CODE" : on supprime le message (le code ne reste pas visible) et on repond brievement. */

@@ -64,6 +64,17 @@ public final class BridgeConfig {
     public static final ModConfigSpec.BooleanValue CHAT_SHARES;
     public static final ModConfigSpec.BooleanValue CHAT_TEAM;
     public static final ModConfigSpec.BooleanValue CHAT_NO_REPORTS;
+    public static final ModConfigSpec.BooleanValue HISTORY_ENABLED;
+    public static final ModConfigSpec.IntValue HISTORY_DAYS;
+    public static final ModConfigSpec.IntValue HISTORY_PRIVATE_DAYS;
+    public static final ModConfigSpec.ConfigValue<List<? extends String>> HISTORY_DISCORD_ROOMS;
+    public static final ModConfigSpec.ConfigValue<String> HISTORY_TRANSLATOR_URL;
+    public static final ModConfigSpec.ConfigValue<String> HISTORY_DEEPL_KEY;
+    public static final ModConfigSpec.ConfigValue<String> HISTORY_DEEPL_ENDPOINT;
+    public static final ModConfigSpec.BooleanValue VOICE_ENABLED;
+    public static final ModConfigSpec.ConfigValue<String> VOICE_RELAY_HOST;
+    public static final ModConfigSpec.IntValue VOICE_RELAY_PORT;
+    public static final ModConfigSpec.ConfigValue<String> VOICE_RELAY_SECRET;
     public static final ModConfigSpec.BooleanValue TELEPORT_ENABLED;
     public static final ModConfigSpec.ConfigValue<List<? extends String>> TELEPORT_EXCLUDED;
     public static final ModConfigSpec.BooleanValue CHAT_POLLS;
@@ -250,6 +261,39 @@ public final class BridgeConfig {
                 .defineInRange("offlineMessagesDays", 30, 1, 365);
         CHAT_OFFLINE_DISCORD = b.comment("Prevenir le joueur en message prive sur Discord, si son compte est lie.")
                 .define("offlineMessagesDiscord", true);
+        b.pop();
+
+        b.push("history");
+        HISTORY_ENABLED = b.comment("Ecran facon Discord d'ArcadiaChat : les messages sont conserves en base (historique, non-lus,",
+                        "reponses, modifications, suppressions, reactions). Messages prives compris : a mentionner aux joueurs.")
+                .define("enabled", true);
+        HISTORY_DAYS = b.comment("Duree de conservation des messages des salons, en jours.")
+                .defineInRange("days", 30, 1, 365);
+        HISTORY_PRIVATE_DAYS = b.comment("Duree de conservation des messages prives, en jours.")
+                .defineInRange("privateDays", 7, 1, 365);
+        HISTORY_DISCORD_ROOMS = b.comment("Salons Discord lisibles et utilisables en jeu : \"nom=identifiant\", suivi au besoin de \":ro\"",
+                        "(lecture seule en jeu) et de \":staff\" (visible par le staff seulement). Exemple : \"annonces=123456789:ro\"")
+                .defineListAllowEmpty("discordRooms", List.of(), () -> "", o -> o instanceof String);
+        HISTORY_DEEPL_KEY = b.comment("Traduction francais <-> anglais des messages publics, par l'API DeepL : la cle de votre compte",
+                        "DeepL (https://www.deepl.com/pro-api). L'offre gratuite donne 500 000 caracteres par mois ; ses cles finissent par",
+                        "\":fx\". Vide = pas de traduction. Les messages prives ne sont jamais traduits ni envoyes a DeepL.")
+                .define("deeplKey", "");
+        HISTORY_DEEPL_ENDPOINT = b.comment("Adresse de l'API DeepL. Vide = choisie selon la cle (gratuite ou payante).")
+                .define("deeplEndpoint", "");
+        HISTORY_TRANSLATOR_URL = b.comment("Service de traduction interne, propre aux serveurs Arcadia : s'il est renseigne, il remplace DeepL.",
+                        "Laisser vide pour utiliser DeepL.")
+                .define("translatorUrl", "");
+        b.pop();
+
+        b.push("voice");
+        VOICE_ENABLED = b.comment("Salons vocaux dans l'ecran des salons d'ArcadiaChat, si Simple Voice Chat est installe sur le serveur.",
+                        "La liste est commune a tous les serveurs. Sans relais, on n'entend que les joueurs de son propre serveur.")
+                .define("rooms", true);
+        VOICE_RELAY_HOST = b.comment("Adresse du relais vocal entre les serveurs (voicehub). Vide = pas de vocal entre serveurs.")
+                .define("relayHost", "");
+        VOICE_RELAY_PORT = b.defineInRange("relayPort", 24480, 1, 65535);
+        VOICE_RELAY_SECRET = b.comment("Secret partage avec le relais et les autres serveurs. Ne jamais le partager.")
+                .define("relaySecret", "");
         b.pop();
 
         b.push("teleport");

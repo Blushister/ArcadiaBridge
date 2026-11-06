@@ -143,6 +143,14 @@ public final class CrossServerChat {
                         if (parts.length == 3) {
                             ChatTabs.deliverReaction(parts[0], parts[1], line.playerName(), "1".equals(parts[2]));
                         }
+                    } else if (VoiceRooms.OCCUPANTS.equals(line.channel())) {
+                        bridge.voice().onRemoteOccupants(line.serverId(), line.formatted());
+                    } else if (PlayerRoster.RELAY.equals(line.channel())) {
+                        bridge.roster().onRemote(line.serverId(), line.formatted());
+                    } else if (VoiceRooms.RELAY.equals(line.channel())) {
+                        bridge.voice().reload();
+                    } else if (MessageHistory.RELAY.equals(line.channel())) {
+                        bridge.history().onRemoteUpdate(line.message());
                     } else if (ChatModeration.RELAY.equals(line.channel())) {
                         bridge.moderation().reload();
                     } else if (ChatChannels.MEMBERSHIP.equals(line.channel())) {

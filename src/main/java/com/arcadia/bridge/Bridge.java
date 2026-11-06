@@ -11,10 +11,14 @@ import java.util.concurrent.TimeUnit;
 
 import com.arcadia.bridge.chat.ChatChannels;
 import com.arcadia.bridge.chat.CrossServerChat;
+import com.arcadia.bridge.chat.MessageHistory;
 import com.arcadia.bridge.chat.PollService;
+import com.arcadia.bridge.chat.PlayerRoster;
+import com.arcadia.bridge.chat.VoiceRooms;
 import com.arcadia.bridge.moderation.ChatModeration;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.data.BridgeCache;
+import com.arcadia.bridge.data.MessageStore;
 import com.arcadia.bridge.data.Models.Link;
 import com.arcadia.bridge.data.Models.PlayerRef;
 import com.arcadia.bridge.data.Models.Sanction;
@@ -53,6 +57,9 @@ public final class Bridge {
     private final ReportService reports;
     private final CrossServerChat crossChat;
     private final ChatChannels channels;
+    private final MessageHistory history;
+    private final VoiceRooms voice;
+    private final PlayerRoster roster;
     private final PollService polls;
     private final ChatModeration moderation;
     private final IpGuard ipGuard;
@@ -64,6 +71,7 @@ public final class Bridge {
     private volatile PrimaryElection election;
     private volatile boolean primary;
     private volatile Repository repository;
+    private volatile MessageStore messages;
     private volatile boolean stopping;
     /** Compteur de cycles de synchronisation (thread de synchro uniquement). */
     private int syncCycles;
@@ -78,6 +86,9 @@ public final class Bridge {
         this.reports = new ReportService(this);
         this.crossChat = new CrossServerChat(this);
         this.channels = new ChatChannels(this);
+        this.history = new MessageHistory(this);
+        this.voice = new VoiceRooms(this);
+        this.roster = new PlayerRoster(this);
         this.polls = new PollService(this);
         this.moderation = new ChatModeration(this);
         this.ipGuard = new IpGuard(this);
@@ -106,12 +117,18 @@ public final class Bridge {
         }
         bridge.discord.start();
         bridge.crossChat.start();
+        bridge.history.start();
+        bridge.voice.start();
         int interval = BridgeConfig.SANCTIONS_POLL_SECONDS.get();
         bridge.scheduler.scheduleWithFixedDelay(bridge::safeSync, interval, interval, TimeUnit.SECONDS);
         if (CrossServerChat.relayActive()) {
             int chatInterval = BridgeConfig.CHAT_CROSS_SERVER_POLL.get();
             bridge.scheduler.scheduleWithFixedDelay(bridge.crossChat::poll, chatInterval, chatInterval,
                     TimeUnit.SECONDS);
+        }
+        if (MessageHistory.enabled()) {
+            int chatInterval = BridgeConfig.CHAT_CROSS_SERVER_POLL.get();
+            bridge.scheduler.scheduleWithFixedDelay(bridge.history::poll, chatInterval, chatInterval, TimeUnit.SECONDS);
         }
     }
 
@@ -141,6 +158,7 @@ public final class Bridge {
                     BridgeConfig.DB_USER.get(), BridgeConfig.DB_PASSWORD.get(), BridgeConfig.DB_PARAMETERS.get(),
                     BridgeConfig.DB_TABLE_PREFIX.get(), BridgeConfig.DB_POOL_SIZE.get());
             repository = new Repository(database);
+            messages = new MessageStore(database);
             election = new PrimaryElection(database,
                     "arcadiabridge:" + database.databaseName() + ":" + database.tablePrefix() + "primary");
             LOGGER.info("[ArcadiaBridge] Connecte a MySQL.");
@@ -200,6 +218,8 @@ public final class Bridge {
         List<ServerStatus> online = repository.loadServers().join().stream().filter(st -> st.isOnline(seen)).toList();
         channels.updateRemotePlayers(online);
         runOnMain(() -> ChatTabs.updateServers(online));
+        voice.heartbeat();
+        roster.heartbeat();
         polls.closeDue();
         moderation.reload();
         if (isPrimary() && discord.isReady()) {
@@ -213,6 +233,10 @@ public final class Bridge {
             // Toutes les ~5 minutes : nos commandes Discord existent-elles toujours ?
             if (++syncCycles % COMMAND_CHECK_EVERY == 0) {
                 discord.ensureCommands();
+                if (messages != null && MessageHistory.enabled()) {
+                    messages.purge(now - TimeUnit.DAYS.toMillis(BridgeConfig.HISTORY_DAYS.get()),
+                            now - TimeUnit.DAYS.toMillis(BridgeConfig.HISTORY_PRIVATE_DAYS.get()));
+                }
             }
             sanctions.handleExpired(repository.expireDue(now).join());
             sanctions.refreshDiscordTimeouts(now);
@@ -291,6 +315,38 @@ public final class Bridge {
 
     public CrossServerChat crossChat() {
         return crossChat;
+    }
+
+    public PlayerRoster roster() {
+        return roster;
+    }
+
+    public VoiceRooms voice() {
+        return voice;
+    }
+
+    /** @return la base, ou null si elle est indisponible. */
+    private com.arcadia.bridge.moderation.StaffNotes notes;
+
+    /** Notes du staff sur les joueurs (creees a la demande, avec la base). */
+    public synchronized com.arcadia.bridge.moderation.StaffNotes notes() {
+        if (notes == null && database() != null) {
+            notes = new com.arcadia.bridge.moderation.StaffNotes(database());
+        }
+        return notes;
+    }
+
+    public Database database() {
+        return database;
+    }
+
+    public MessageHistory history() {
+        return history;
+    }
+
+    /** @return les messages conserves, ou null si la base est indisponible. */
+    public MessageStore messages() {
+        return messages;
     }
 
     public PollService polls() {

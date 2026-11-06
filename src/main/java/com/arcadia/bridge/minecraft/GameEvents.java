@@ -110,6 +110,8 @@ public final class GameEvents {
         bridge.verification().onLeave(player);
         bridge.crossChat().onLeave(player);
         bridge.channels().onLeave(player);
+        bridge.history().onLeave(player);
+        bridge.roster().onLeave(player);
         bridge.moderation().onLeave(player);
         Ignores.onLeave(player);
         CrossServerTeleport.onLeave(player);
@@ -154,6 +156,8 @@ public final class GameEvents {
         moderation.onPublicChat(player, event.getRawText());
         // Mots masques et @everyone desamorce, partout ou le message part (autres serveurs, Discord).
         String raw = moderation.clean(player, event.getRawText());
+        bridge.history().recordPublic(player, raw);
+        bridge.roster().onActivity(player);
         if (!BridgeConfig.CHAT_TO_DISCORD.get() || !bridge.discord().isReady()) {
             String prefixOnly = BridgeConfig.CHAT_LUCKPERMS_PREFIX.get() ? LuckPermsHook.prefix(player.getUUID()) : "";
             bridge.crossChat().publish(player, prefixOnly, raw, ChatFormatterCompat.format(player, event.getMessage())
@@ -334,5 +338,7 @@ public final class GameEvents {
         bridge.verification().tick();
         bridge.moderation().tick();
         bridge.updateOnlineSnapshot();
+        bridge.roster().tick();
+        ChatTabs.updateServiceStatus();
     }
 }

@@ -144,6 +144,7 @@ public final class ChatChannels {
         LOGGER.info("[Staff] {} : {}", name, Text.stripFormatting(text));
         deliverLocal(TabsProtocol.CHANNEL_STAFF, Bridge.serverId(), name, line, this::isStaff);
         publish(name, text, line, TabsProtocol.CHANNEL_STAFF);
+        bridge.history().recordChannel(sender, TabsProtocol.CHANNEL_STAFF, text);
     }
 
     /** Message ecrit dans l'onglet Equipe : transmis a FTB Teams, qui le diffuse a l'equipe. */
@@ -181,6 +182,7 @@ public final class ChatChannels {
         String tag = TabsProtocol.CHANNEL_PREFIX + channel;
         deliverLocal(tag, Bridge.serverId(), name, line, p -> isMember(p.getUUID(), channel));
         publish(name, text, line, tag);
+        bridge.history().recordChannel(sender, tag, text);
     }
 
     /** Alerte pour le staff de tous les serveurs (signalement, contournement de ban...). Thread quelconque. */
@@ -191,7 +193,10 @@ public final class ChatChannels {
         Component line = Component.literal(Text.fill(Text.colorize(BridgeConfig.CHAT_ALERT_FORMAT.get()),
                 "server", Text.stripFormatting(serverName()),
                 "message", Text.stripFormatting(message)));
-        bridge.runOnMain(() -> deliverLocal(TabsProtocol.CHANNEL_ALERT, Bridge.serverId(), "", line, this::isStaff));
+        bridge.runOnMain(() -> {
+            deliverLocal(TabsProtocol.CHANNEL_ALERT, Bridge.serverId(), "", line, this::isStaff);
+            bridge.history().recordAlert(message);
+        });
         publish("", message, line, TabsProtocol.CHANNEL_ALERT);
     }
 
@@ -231,6 +236,7 @@ public final class ChatChannels {
         ChatTabs.deliver(sender, TabsProtocol.CHANNEL_PRIVATE, target, name, outgoing);
         LOGGER.info("[MP] {} -> {} ({}) : {}", name, target, serverName(), Text.stripFormatting(text));
         publish(name, text, incoming, PRIVATE_PREFIX + target.toLowerCase(Locale.ROOT));
+        bridge.history().recordPrivate(sender, target, text);
     }
 
     // ---------------------------------------------------------------- messages hors ligne
@@ -260,6 +266,7 @@ public final class ChatChannels {
                     ChatTabs.deliver(sender, TabsProtocol.CHANNEL_PRIVATE, target.name(), name, outgoing);
                     LOGGER.info("[MP hors ligne] {} -> {} : {}", name, target.name(), Text.stripFormatting(cleaned));
                     notifyOnDiscord(target, name, body);
+                    bridge.history().recordPrivate(sender, target.name(), cleaned);
                 }))
                 .exceptionally(error -> {
                     LOGGER.warn("[ArcadiaBridge] Message hors ligne non enregistre : {}", error.toString());
@@ -375,7 +382,7 @@ public final class ChatChannels {
     }
 
     /** Joueur muet, en attente de verification, message vide ou trop rapproche : refuse. */
-    private boolean acceptMessage(ServerPlayer sender, String text) {
+    public boolean acceptMessage(ServerPlayer sender, String text) {
         if (text == null || text.isBlank() || ChatGuard.shouldBlock(sender)) {
             return false;
         }

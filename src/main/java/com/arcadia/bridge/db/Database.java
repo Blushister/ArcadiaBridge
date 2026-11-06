@@ -332,6 +332,61 @@ public final class Database implements AutoCloseable {
                         + "created_by VARCHAR(16) NOT NULL,"
                         + "created_at BIGINT NOT NULL)" + opts);
             }
+            try (Statement s = c.createStatement()) {
+                // Ecran facon Discord d'ArcadiaChat : messages conserves, avec reponses, reactions et trace des changements.
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("messages") + " ("
+                        + "id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,"
+                        + "channel VARCHAR(48) NOT NULL,"
+                        + "sender VARCHAR(64) NOT NULL,"
+                        + "recipient VARCHAR(16) NULL,"
+                        + "prefix VARCHAR(128) NULL,"
+                        + "server_id VARCHAR(64) NOT NULL,"
+                        + "from_discord TINYINT(1) NOT NULL DEFAULT 0,"
+                        + "raw VARCHAR(2048) NOT NULL,"
+                        + "formatted MEDIUMTEXT NULL,"
+                        + "reply_to BIGINT NULL,"
+                        + "created_at BIGINT NOT NULL,"
+                        + "edited_at BIGINT NOT NULL DEFAULT 0,"
+                        + "deleted_at BIGINT NULL,"
+                        + "deleted_by VARCHAR(64) NULL,"
+                        + "INDEX idx_channel (channel, id),"
+                        + "INDEX idx_server (server_id, id),"
+                        + "INDEX idx_created (created_at))" + opts);
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("message_reactions") + " ("
+                        + "message_id BIGINT NOT NULL,"
+                        + "emoji VARCHAR(16) NOT NULL,"
+                        + "player VARCHAR(16) NOT NULL,"
+                        + "PRIMARY KEY (message_id, emoji, player))" + opts);
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("message_edits") + " ("
+                        + "id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,"
+                        + "message_id BIGINT NOT NULL,"
+                        + "old_raw VARCHAR(2048) NOT NULL,"
+                        + "edited_by VARCHAR(64) NOT NULL,"
+                        + "edited_at BIGINT NOT NULL,"
+                        + "INDEX idx_message (message_id))" + opts);
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("message_reads") + " ("
+                        + "player VARCHAR(16) NOT NULL,"
+                        + "channel_key VARCHAR(80) NOT NULL,"
+                        + "label VARCHAR(16) NOT NULL DEFAULT '',"
+                        + "last_id BIGINT NOT NULL DEFAULT 0,"
+                        + "updated_at BIGINT NOT NULL,"
+                        + "PRIMARY KEY (player, channel_key))" + opts);
+            }
+            try (Statement s = c.createStatement()) {
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("voice_rooms") + " ("
+                        + "name VARCHAR(24) NOT NULL PRIMARY KEY,"
+                        + "is_private TINYINT(1) NOT NULL DEFAULT 0,"
+                        + "created_by VARCHAR(16) NOT NULL,"
+                        + "created_at BIGINT NOT NULL)" + opts);
+                s.execute("CREATE TABLE IF NOT EXISTS " + t("voice_members") + " ("
+                        + "room VARCHAR(24) NOT NULL,"
+                        + "uuid CHAR(36) NOT NULL,"
+                        + "PRIMARY KEY (room, uuid))" + opts);
+                addColumnIfMissing(c, t("voice_rooms"), "temporary", "TINYINT(1) NOT NULL DEFAULT 0");
+            }
+            addColumnIfMissing(c, t("messages"), "lang", "VARCHAR(8) NULL");
+            addColumnIfMissing(c, t("messages"), "translated", "VARCHAR(2048) NULL");
+            addColumnIfMissing(c, t("messages"), "translated_formatted", "MEDIUMTEXT NULL");
             // Apres la creation de la table des canaux : colonne ajoutee dans la version 1.2.
             addColumnIfMissing(c, t("channels"), "is_private", "TINYINT(1) NOT NULL DEFAULT 0");
             try (Statement s = c.createStatement()) {

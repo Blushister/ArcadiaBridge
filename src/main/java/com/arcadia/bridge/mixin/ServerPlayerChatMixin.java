@@ -67,6 +67,10 @@ public abstract class ServerPlayerChatMixin {
         Bridge bridge = Bridge.get();
         if (bridge != null) {
             line = bridge.moderation().clean(self.server.getPlayerList().getPlayerByName(sender), line);
+            // Un /msg sur ce serveur : conserve une seule fois, cote expediteur.
+            if (type.is(ChatType.MSG_COMMAND_OUTGOING) && !partner.isEmpty()) {
+                bridge.history().recordPrivate(self, partner, bridge.moderation().clean(self, message.content().getString()));
+            }
         }
         if (ChatTabs.send(self, channel, partner, sender, line)) {
             ci.cancel();

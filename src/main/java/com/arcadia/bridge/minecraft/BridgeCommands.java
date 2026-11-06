@@ -81,6 +81,9 @@ public final class BridgeCommands {
         d.register(staff("arcadia_warn", Permissions.WARN)
                 .then(player().then(reason().executes(ctx -> sanction(ctx, SanctionType.WARN, null, arg(ctx, "reason"))))));
 
+        d.register(staff("arcadia_note", Permissions.HISTORY)
+                .then(player().then(reason().executes(BridgeCommands::note))));
+
         d.register(staff("arcadia_history", Permissions.HISTORY)
                 .then(player().executes(BridgeCommands::history)));
 
@@ -261,6 +264,21 @@ public final class BridgeCommands {
         withTarget(ctx, target -> Bridge.get().sanctions().revoke(type, target, actor, true)
                 .thenApply(revoked -> (Component) Lang.mc(revoked.isEmpty() ? "cmd.revoke.none" : "cmd.revoke.done",
                         "name", target.name())));
+        return 1;
+    }
+
+    /** /arcadia_note joueur texte : une note du staff, visible dans l'historique du joueur. */
+    private static int note(CommandContext<CommandSourceStack> ctx) {
+        String actor = ctx.getSource().getTextName();
+        String text = arg(ctx, "reason");
+        withTarget(ctx, target -> {
+            var notes = Bridge.get().notes();
+            if (notes == null) {
+                return CompletableFuture.completedFuture((Component) Lang.mc("common.unavailable"));
+            }
+            return notes.add(target.uuid(), target.name(), text, actor)
+                    .thenApply(done -> (Component) Lang.mc("cmd.note.added", "name", target.name()));
+        });
         return 1;
     }
 

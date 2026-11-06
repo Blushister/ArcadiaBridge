@@ -39,6 +39,7 @@
   "cmd.unlink.none": "&e{name} n'a pas de compte Discord lié.",
   "cmd.history.header": "&6Historique de {name} :",
   "cmd.history.empty": "&7Aucune sanction.",
+  "cmd.note.added": "&aNote ajoutée sur {name} : visible dans son historique.",
   "cmd.history.line": "&7{date} &f{type} &7{state}- {reason} &8(par {actor})",
   "cmd.history.active": "[en cours] ",
   "cmd.history.ended": "",
@@ -233,5 +234,15 @@
   "teleport.gone": "&c{name} n'est plus connecté à un autre serveur.",
   "teleport.excluded": "&cLa téléportation vers {server} n'est pas autorisée.",
   "teleport.no_address": "&cAdresse de {server} inconnue : téléportation impossible.",
-  "teleport.arrived_gone": "&e{name} s'est déconnecté entre-temps : tu arrives sans téléportation."
+  "teleport.arrived_gone": "&e{name} s'est déconnecté entre-temps : tu arrives sans téléportation.",
+  "history.read_only": "Le salon {room} est en lecture seule.",
+  "history.discord_unavailable": "Discord est indisponible pour le moment.",
+  "voice.denied": "&cTu n'as pas accès au salon vocal {room}.",
+  "voice.not_ready": "&cLe vocal démarre encore, réessaie dans un instant.",
+  "voice.not_connected": "&cTon vocal n'est pas connecté : vérifie que Simple Voice Chat est actif.",
+  "voice.bad_name": "&cNom invalide : 2 à 24 lettres minuscules, chiffres, - ou _.",
+  "voice.exists": "&cLe salon vocal {room} existe déjà.",
+  "voice.temp_limit": "&cTu as déjà un salon vocal temporaire : il disparaîtra une fois vide.",
+  "voice.member_added": "&a{name} peut rejoindre le salon vocal {room}.",
+  "voice.member_removed": "&e{name} n'a plus accès au salon vocal {room}."
 }

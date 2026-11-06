@@ -16,6 +16,13 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 repositories {
     mavenCentral()
+    maven {
+        // API de Simple Voice Chat, a la compilation seulement : le mod reste optionnel.
+        url = 'https://maven.maxhenkel.de/repository/public'
+        content {
+            includeGroup 'de.maxhenkel.voicechat'
+        }
+    }
 }
 
 neoForge {
@@ -84,6 +91,7 @@ dependencies {
 
     // LuckPerms : dependance optionnelle (prefixes de chat)
     compileOnly "net.luckperms:api:${luckperms_api_version}"
+    compileOnly 'de.maxhenkel.voicechat:voicechat-api:2.6.0'
 
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.slf4j:slf4j-api:2.0.16'

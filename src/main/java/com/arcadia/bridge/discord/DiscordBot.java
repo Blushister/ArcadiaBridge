@@ -162,6 +162,14 @@ public final class DiscordBot {
         }
     }
 
+    /** Message du bot dans un salon relie a l'ecran facon Discord d'ArcadiaChat. */
+    public void sendTo(long channelId, String text) {
+        TextChannel channel = channel(channelId);
+        if (isReady() && channel != null && !text.isBlank()) {
+            channel.sendMessage(truncate(text, Message.MAX_CONTENT_LENGTH)).queue(null, this::logFailure);
+        }
+    }
+
     /** Envoi bloquant (max 5 s), utilise pour l'annonce d'arret du serveur. */
     public void sendChatBlocking(String text) {
         TextChannel channel = channel(BridgeConfig.snowflake(BridgeConfig.DISCORD_CHAT_CHANNEL_ID));

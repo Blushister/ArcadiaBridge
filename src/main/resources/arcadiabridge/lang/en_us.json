@@ -39,6 +39,7 @@
   "cmd.unlink.none": "&e{name} has no linked Discord account.",
   "cmd.history.header": "&6History of {name}:",
   "cmd.history.empty": "&7No sanctions.",
+  "cmd.note.added": "&aNote added for {name}: it shows in their history.",
   "cmd.history.line": "&7{date} &f{type} &7{state}- {reason} &8(by {actor})",
   "cmd.history.active": "[active] ",
   "cmd.history.ended": "",
@@ -233,5 +234,15 @@
   "teleport.gone": "&c{name} is no longer connected to another server.",
   "teleport.excluded": "&cTeleporting to {server} is not allowed.",
   "teleport.no_address": "&cUnknown address for {server}: can't teleport.",
-  "teleport.arrived_gone": "&e{name} disconnected in the meantime: you arrive without teleporting."
+  "teleport.arrived_gone": "&e{name} disconnected in the meantime: you arrive without teleporting.",
+  "history.read_only": "The {room} room is read-only.",
+  "history.discord_unavailable": "Discord is unavailable right now.",
+  "voice.denied": "&cYou cannot access the voice room {room}.",
+  "voice.not_ready": "&cVoice is still starting, try again in a moment.",
+  "voice.not_connected": "&cYour voice is not connected: check that Simple Voice Chat is active.",
+  "voice.bad_name": "&cInvalid name: 2 to 24 lowercase letters, digits, - or _.",
+  "voice.exists": "&cThe voice room {room} already exists.",
+  "voice.temp_limit": "&cYou already have a temporary voice room: it disappears once empty.",
+  "voice.member_added": "&a{name} can join the voice room {room}.",
+  "voice.member_removed": "&e{name} can no longer access the voice room {room}."
 }

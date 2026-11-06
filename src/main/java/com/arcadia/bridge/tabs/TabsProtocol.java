@@ -425,4 +425,269 @@ public final class TabsProtocol {
             return TYPE;
         }
     }
+
+    // ---------------------------------------------------------------- ecran facon Discord
+
+    /** Une reaction a un message conserve, et les joueurs qui l'ont mise. */
+    public record ReactionEntry(String emoji, List<String> names) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, ReactionEntry> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, ReactionEntry::emoji,
+                STRINGS, ReactionEntry::names,
+                ReactionEntry::new);
+    }
+
+    /**
+     * Message conserve en base. {@code channel} : "global", "local", "staff", "#canal", "discord:salon" ou "@correspondant"
+     * (vu par celui qui le recoit). {@code origin} : identifiant du serveur d'origine. {@code lang} : langue detectee
+     * ("fr", "en", ou vide) ; {@code translated} : le message dans l'autre langue (vide s'il n'y en a pas).
+     */
+    public record StoredMessage(long id, String channel, String sender, String prefix, String origin, boolean discord,
+                                String raw, Component body, long replyId, String replySender, String replyText,
+                                long createdAt, long editedAt, boolean deleted, List<ReactionEntry> reactions, String lang,
+                                Component translated) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, StoredMessage> STREAM_CODEC = StreamCodec.of(
+                (buf, m) -> {
+                    buf.writeVarLong(m.id());
+                    buf.writeUtf(m.channel());
+                    buf.writeUtf(m.sender());
+                    buf.writeUtf(m.prefix());
+                    buf.writeUtf(m.origin());
+                    buf.writeBoolean(m.discord());
+                    buf.writeUtf(m.raw());
+                    ComponentSerialization.STREAM_CODEC.encode(buf, m.body());
+                    buf.writeVarLong(m.replyId());
+                    buf.writeUtf(m.replySender());
+                    buf.writeUtf(m.replyText());
+                    buf.writeVarLong(m.createdAt());
+                    buf.writeVarLong(m.editedAt());
+                    buf.writeBoolean(m.deleted());
+                    ReactionEntry.STREAM_CODEC.apply(ByteBufCodecs.list()).encode(buf, m.reactions());
+                    buf.writeUtf(m.lang());
+                    ComponentSerialization.STREAM_CODEC.encode(buf, m.translated());
+                },
+                buf -> new StoredMessage(buf.readVarLong(), buf.readUtf(), buf.readUtf(), buf.readUtf(), buf.readUtf(),
+                        buf.readBoolean(), buf.readUtf(), ComponentSerialization.STREAM_CODEC.decode(buf),
+                        buf.readVarLong(), buf.readUtf(), buf.readUtf(), buf.readVarLong(), buf.readVarLong(),
+                        buf.readBoolean(), ReactionEntry.STREAM_CODEC.apply(ByteBufCodecs.list()).decode(buf), buf.readUtf(),
+                        ComponentSerialization.STREAM_CODEC.decode(buf)));
+    }
+
+    /** Un salon du joueur : non-lus, et premier message non lu ({@code firstUnread} : 0 s'il n'y en a pas). */
+    public record RoomEntry(String channel, String label, boolean readOnly, int unread, long firstUnread) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, RoomEntry> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, RoomEntry::channel,
+                ByteBufCodecs.STRING_UTF8, RoomEntry::label,
+                ByteBufCodecs.BOOL, RoomEntry::readOnly,
+                ByteBufCodecs.VAR_INT, RoomEntry::unread,
+                ByteBufCodecs.VAR_LONG, RoomEntry::firstUnread,
+                RoomEntry::new);
+    }
+
+    /** Serveur -> client : les salons conserves du joueur (a la connexion et quand ils changent). */
+    public record Rooms(List<RoomEntry> rooms) implements CustomPacketPayload {
+        public static final Type<Rooms> TYPE = new Type<>(id("rooms"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, Rooms> STREAM_CODEC = StreamCodec.composite(
+                RoomEntry.STREAM_CODEC.apply(ByteBufCodecs.list()), Rooms::rooms,
+                Rooms::new);
+
+        @Override
+        public Type<Rooms> type() {
+            return TYPE;
+        }
+    }
+
+    /** Serveur -> client : un message nouveau, modifie ou supprime. */
+    public record MessagePush(StoredMessage message) implements CustomPacketPayload {
+        public static final Type<MessagePush> TYPE = new Type<>(id("message_push"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, MessagePush> STREAM_CODEC = StreamCodec.composite(
+                StoredMessage.STREAM_CODEC, MessagePush::message,
+                MessagePush::new);
+
+        @Override
+        public Type<MessagePush> type() {
+            return TYPE;
+        }
+    }
+
+    /** Client -> serveur : messages d'un salon avant {@code beforeId} (0 : les plus recents), filtres par {@code query}. */
+    public record HistoryRequest(String channel, long beforeId, String query) implements CustomPacketPayload {
+        public static final Type<HistoryRequest> TYPE = new Type<>(id("history_request"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, HistoryRequest> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.stringUtf8(64), HistoryRequest::channel,
+                ByteBufCodecs.VAR_LONG, HistoryRequest::beforeId,
+                ByteBufCodecs.stringUtf8(64), HistoryRequest::query,
+                HistoryRequest::new);
+
+        @Override
+        public Type<HistoryRequest> type() {
+            return TYPE;
+        }
+    }
+
+    /** Serveur -> client : une page de messages, du plus ancien au plus recent ; {@code more} : il en reste avant. */
+    public record HistoryPage(String channel, long beforeId, String query, List<StoredMessage> messages, boolean more)
+            implements CustomPacketPayload {
+        public static final Type<HistoryPage> TYPE = new Type<>(id("history_page"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, HistoryPage> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, HistoryPage::channel,
+                ByteBufCodecs.VAR_LONG, HistoryPage::beforeId,
+                ByteBufCodecs.STRING_UTF8, HistoryPage::query,
+                StoredMessage.STREAM_CODEC.apply(ByteBufCodecs.list()), HistoryPage::messages,
+                ByteBufCodecs.BOOL, HistoryPage::more,
+                HistoryPage::new);
+
+        @Override
+        public Type<HistoryPage> type() {
+            return TYPE;
+        }
+    }
+
+    /**
+     * Client -> serveur : action sur un salon ou un message. {@code kind} : "reply" (le prochain message du joueur
+     * repond a {@code id}), "edit" ({@code text} : le nouveau texte), "delete", "react" et "unreact" ({@code text} : la
+     * reaction), "read" (lu jusqu'a {@code id} dans {@code channel}), "close" (ferme la conversation {@code channel}).
+     */
+    public record RoomAction(String kind, String channel, long id, String text) implements CustomPacketPayload {
+        public static final Type<RoomAction> TYPE = new Type<>(TabsProtocol.id("room_action"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, RoomAction> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.stringUtf8(16), RoomAction::kind,
+                ByteBufCodecs.stringUtf8(64), RoomAction::channel,
+                ByteBufCodecs.VAR_LONG, RoomAction::id,
+                ByteBufCodecs.stringUtf8(512), RoomAction::text,
+                RoomAction::new);
+
+        @Override
+        public Type<RoomAction> type() {
+            return TYPE;
+        }
+    }
+
+    /** Les joueurs connectes a un serveur. */
+    public record ServerPlayers(String id, String name, List<String> names) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, ServerPlayers> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, ServerPlayers::id,
+                ByteBufCodecs.STRING_UTF8, ServerPlayers::name,
+                STRINGS, ServerPlayers::names,
+                ServerPlayers::new);
+    }
+
+    /** Serveur -> client : qui est connecte, serveur par serveur (envoye quand ca change). */
+    public record Presence(List<ServerPlayers> servers) implements CustomPacketPayload {
+        public static final Type<Presence> TYPE = new Type<>(id("presence"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, Presence> STREAM_CODEC = StreamCodec.composite(
+                ServerPlayers.STREAM_CODEC.apply(ByteBufCodecs.list()), Presence::servers,
+                Presence::new);
+
+        @Override
+        public Type<Presence> type() {
+            return TYPE;
+        }
+    }
+
+    /** Un salon vocal : prive ou non, et les joueurs qui s'y trouvent ({@code memberIds} : leurs UUID, dans le meme ordre). */
+    /** Une sanction de l'historique d'un joueur : BAN, MUTE ou WARN ; {@code expiresAt} vaut 0 si elle est definitive. */
+    public record HistoryEntry(String type, String reason, String actor, long createdAt, long expiresAt, boolean inEffect) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, HistoryEntry> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, HistoryEntry::type,
+                ByteBufCodecs.STRING_UTF8, HistoryEntry::reason,
+                ByteBufCodecs.STRING_UTF8, HistoryEntry::actor,
+                ByteBufCodecs.VAR_LONG, HistoryEntry::createdAt,
+                ByteBufCodecs.VAR_LONG, HistoryEntry::expiresAt,
+                ByteBufCodecs.BOOL, HistoryEntry::inEffect,
+                HistoryEntry::new);
+    }
+
+    /** Client -> serveur : l'historique de ce joueur (reserve au staff). */
+    public record PlayerHistoryRequest(String name) implements CustomPacketPayload {
+        public static final Type<PlayerHistoryRequest> TYPE = new Type<>(id("player_history_request"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, PlayerHistoryRequest> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.stringUtf8(16), PlayerHistoryRequest::name,
+                PlayerHistoryRequest::new);
+
+        @Override
+        public Type<PlayerHistoryRequest> type() {
+            return TYPE;
+        }
+    }
+
+    /** Serveur -> client : les sanctions du joueur, les plus recentes d'abord ({@code found} faux s'il est inconnu). */
+    public record PlayerHistory(String name, boolean found, List<HistoryEntry> entries) implements CustomPacketPayload {
+        public static final Type<PlayerHistory> TYPE = new Type<>(id("player_history"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, PlayerHistory> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, PlayerHistory::name,
+                ByteBufCodecs.BOOL, PlayerHistory::found,
+                HistoryEntry.STREAM_CODEC.apply(ByteBufCodecs.list()), PlayerHistory::entries,
+                PlayerHistory::new);
+
+        @Override
+        public Type<PlayerHistory> type() {
+            return TYPE;
+        }
+    }
+
+    /** Etat des services : 0 sans le service sur ce serveur, 1 en marche, 2 injoignable. */
+    public record ServiceStatus(int translator, int relay) implements CustomPacketPayload {
+        public static final Type<ServiceStatus> TYPE = new Type<>(id("service_status"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ServiceStatus> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, ServiceStatus::translator,
+                ByteBufCodecs.VAR_INT, ServiceStatus::relay,
+                ServiceStatus::new);
+
+        @Override
+        public Type<ServiceStatus> type() {
+            return TYPE;
+        }
+    }
+
+    public record VoiceRoomEntry(String name, boolean isPrivate, List<String> members, List<String> memberIds, boolean temporary) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, VoiceRoomEntry> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, VoiceRoomEntry::name,
+                ByteBufCodecs.BOOL, VoiceRoomEntry::isPrivate,
+                STRINGS, VoiceRoomEntry::members,
+                STRINGS, VoiceRoomEntry::memberIds,
+                ByteBufCodecs.BOOL, VoiceRoomEntry::temporary,
+                VoiceRoomEntry::new);
+    }
+
+    /** Un joueur connecte : son prefixe de grade, le poids de ce grade (pour l'ordre) et s'il est absent. */
+    public record RosterEntry(String name, String prefix, int weight, boolean afk) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, RosterEntry> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, RosterEntry::name,
+                ByteBufCodecs.STRING_UTF8, RosterEntry::prefix,
+                ByteBufCodecs.VAR_INT, RosterEntry::weight,
+                ByteBufCodecs.BOOL, RosterEntry::afk,
+                RosterEntry::new);
+    }
+
+    /** Serveur -> client : les joueurs connectes sur tous les serveurs, avec leur grade. */
+    public record Roster(List<RosterEntry> players) implements CustomPacketPayload {
+        public static final Type<Roster> TYPE = new Type<>(id("roster"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, Roster> STREAM_CODEC = StreamCodec.composite(
+                RosterEntry.STREAM_CODEC.apply(ByteBufCodecs.list()), Roster::players,
+                Roster::new);
+
+        @Override
+        public Type<Roster> type() {
+            return TYPE;
+        }
+    }
+
+    /**
+     * Serveur -> client : les salons vocaux que le joueur peut voir, et celui ou il est. {@code crossServer} : on y entend aussi
+     * les joueurs des autres serveurs. Jamais envoye sans le mod de vocal.
+     */
+    public record VoiceState(boolean manager, boolean crossServer, String current, List<VoiceRoomEntry> rooms) implements CustomPacketPayload {
+        public static final Type<VoiceState> TYPE = new Type<>(TabsProtocol.id("voice_state"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, VoiceState> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.BOOL, VoiceState::manager,
+                ByteBufCodecs.BOOL, VoiceState::crossServer,
+                ByteBufCodecs.STRING_UTF8, VoiceState::current,
+                VoiceRoomEntry.STREAM_CODEC.apply(ByteBufCodecs.list()), VoiceState::rooms,
+                VoiceState::new);
+
+        @Override
+        public Type<VoiceState> type() {
+            return TYPE;
+        }
+    }
 }

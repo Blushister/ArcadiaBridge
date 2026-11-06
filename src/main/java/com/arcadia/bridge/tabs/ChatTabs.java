@@ -11,6 +11,7 @@ import com.arcadia.bridge.chat.ChatChannels;
 import com.arcadia.bridge.chat.CrossServerChat;
 import com.arcadia.bridge.chat.Ignores;
 import com.arcadia.bridge.compat.FtbTeamsCompat;
+import com.arcadia.bridge.discord.DiscordRooms;
 import com.arcadia.bridge.moderation.StaffPanel;
 import com.arcadia.bridge.config.BridgeConfig;
 import com.arcadia.bridge.data.Models.ServerStatus;
@@ -115,6 +116,33 @@ public final class ChatTabs {
         registrar.playToServer(TabsProtocol.PanelAction.TYPE, TabsProtocol.PanelAction.STREAM_CODEC, StaffPanel::onAction);
         registrar.playToClient(TabsProtocol.PanelData.TYPE, TabsProtocol.PanelData.STREAM_CODEC, (payload, context) -> { });
         registrar.playToClient(TabsProtocol.Pinned.TYPE, TabsProtocol.Pinned.STREAM_CODEC, (payload, context) -> { });
+        registrar.playToClient(TabsProtocol.Rooms.TYPE, TabsProtocol.Rooms.STREAM_CODEC, (payload, context) -> { });
+        registrar.playToClient(TabsProtocol.MessagePush.TYPE, TabsProtocol.MessagePush.STREAM_CODEC, (payload, context) -> { });
+        registrar.playToClient(TabsProtocol.HistoryPage.TYPE, TabsProtocol.HistoryPage.STREAM_CODEC, (payload, context) -> { });
+        registrar.playToClient(TabsProtocol.Presence.TYPE, TabsProtocol.Presence.STREAM_CODEC, (payload, context) -> { });
+        registrar.playToClient(TabsProtocol.VoiceState.TYPE, TabsProtocol.VoiceState.STREAM_CODEC, (payload, context) -> { });
+        registrar.playToClient(TabsProtocol.Roster.TYPE, TabsProtocol.Roster.STREAM_CODEC, (payload, context) -> { });
+        registrar.playToClient(TabsProtocol.ServiceStatus.TYPE, TabsProtocol.ServiceStatus.STREAM_CODEC, (payload, context) -> { });
+        registrar.playToClient(TabsProtocol.PlayerHistory.TYPE, TabsProtocol.PlayerHistory.STREAM_CODEC, (payload, context) -> { });
+        registrar.playToServer(TabsProtocol.PlayerHistoryRequest.TYPE, TabsProtocol.PlayerHistoryRequest.STREAM_CODEC, ChatTabs::onPlayerHistory);
+        registrar.playToServer(TabsProtocol.HistoryRequest.TYPE, TabsProtocol.HistoryRequest.STREAM_CODEC, (payload, context) -> {
+            Bridge bridge = Bridge.get();
+            if (bridge != null) {
+                bridge.history().onHistoryRequest(payload, context);
+            }
+        });
+        registrar.playToServer(TabsProtocol.RoomAction.TYPE, TabsProtocol.RoomAction.STREAM_CODEC, (payload, context) -> {
+            Bridge bridge = Bridge.get();
+            if (bridge != null) {
+                if (payload.kind().startsWith("voice_")) {
+                    if (context.player() instanceof ServerPlayer player) {
+                        bridge.voice().onAction(player, payload);
+                    }
+                } else {
+                    bridge.history().onRoomAction(payload, context);
+                }
+            }
+        });
     }
 
     /**
@@ -123,6 +151,11 @@ public final class ChatTabs {
      */
     public static boolean supports(ServerPlayer player) {
         return READY.contains(player.getUUID());
+    }
+
+    /** Le client du joueur connait-il l'ecran facon Discord ? (ArcadiaChat assez recent) */
+    public static boolean supportsRooms(ServerPlayer player) {
+        return supports(player) && player.connection.hasChannel(TabsProtocol.Rooms.TYPE);
     }
 
     /**
@@ -203,10 +236,23 @@ public final class ChatTabs {
         PacketDistributor.sendToPlayer(player, new TabsProtocol.RemotePlayers(remotePlayers));
         sendChannels(player);
         sendPinned(player, bridge.moderation().pinnedLines());
+        bridge.history().sendRooms(player);
+        if (supportsRooms(player)) {
+            PacketDistributor.sendToPlayer(player, new TabsProtocol.Presence(presence));
+            bridge.voice().sendTo(player);
+            bridge.roster().sendTo(player);
+        }
+        if (player.connection.hasChannel(TabsProtocol.ServiceStatus.TYPE)) {
+            PacketDistributor.sendToPlayer(player, serviceStatus);
+        }
     }
 
     public static void onLogout(ServerPlayer player) {
         READY.remove(player.getUUID());
+        Bridge bridgeNow = Bridge.get();
+        if (bridgeNow != null) {
+            bridgeNow.voice().broadcastSoon();
+        }
         REACTED.remove(player.getUUID());
         DB_REQUEST.remove(player.getUUID());
         if (TYPING_SENT.remove(player.getUUID()) != null) {
@@ -230,11 +276,13 @@ public final class ChatTabs {
         Bridge bridge = Bridge.get();
         if (bridge != null && supports(player) && ChatChannels.channelsEnabled()) {
             PacketDistributor.sendToPlayer(player, new TabsProtocol.Channels(bridge.channels().channelsOf(player.getUUID())));
+            bridge.history().sendRooms(player);
         }
     }
 
     /** Serveurs en ligne, mis a jour a chaque synchronisation ; envoyes aux clients seulement s'ils changent. */
     public static void updateServers(List<ServerStatus> online) {
+        updatePresence(online);
         List<TabsProtocol.ServerInfo> list = online.stream()
                 .map(st -> new TabsProtocol.ServerInfo(st.serverId(),
                         st.displayName() == null || st.displayName().isBlank() ? st.serverId() : st.displayName(),
@@ -251,6 +299,29 @@ public final class ChatTabs {
         for (ServerPlayer player : bridge.server().getPlayerList().getPlayers()) {
             if (supports(player)) {
                 PacketDistributor.sendToPlayer(player, new TabsProtocol.Servers(list));
+            }
+        }
+    }
+
+    /** Qui est connecte, serveur par serveur (derniere synchronisation). */
+    private static volatile List<TabsProtocol.ServerPlayers> presence = List.of();
+
+    private static void updatePresence(List<ServerStatus> online) {
+        List<TabsProtocol.ServerPlayers> list = online.stream()
+                .map(st -> new TabsProtocol.ServerPlayers(st.serverId(), st.label(), List.copyOf(st.names())))
+                .toList();
+        if (list.equals(presence)) {
+            return;
+        }
+        presence = list;
+        Bridge bridge = Bridge.get();
+        if (bridge == null) {
+            return;
+        }
+        var payload = new TabsProtocol.Presence(list);
+        for (ServerPlayer player : bridge.server().getPlayerList().getPlayers()) {
+            if (supportsRooms(player)) {
+                PacketDistributor.sendToPlayer(player, payload);
             }
         }
     }
@@ -276,6 +347,64 @@ public final class ChatTabs {
 
     // ---------------------------------------------------------------- messages du client
 
+    private static TabsProtocol.ServiceStatus serviceStatus = new TabsProtocol.ServiceStatus(0, 0);
+
+    /** Chaque seconde : si la traduction ou le relais vocal changent d'etat, les joueurs le savent aussitot. */
+    public static void updateServiceStatus() {
+        Bridge bridge = Bridge.get();
+        if (bridge == null) {
+            return;
+        }
+        var translator = bridge.history().translator();
+        int translation = !BridgeConfig.HISTORY_ENABLED.get() || !translator.enabled() ? 0 : translator.available() ? 1 : 2;
+        int relay = !com.arcadia.bridge.chat.VoiceRooms.available() || !com.arcadia.bridge.compat.VoiceCompat.relayActive() ? 0
+                : com.arcadia.bridge.compat.VoiceCompat.relayReachable() ? 1 : 2;
+        TabsProtocol.ServiceStatus next = new TabsProtocol.ServiceStatus(translation, relay);
+        if (next.equals(serviceStatus)) {
+            return;
+        }
+        serviceStatus = next;
+        for (ServerPlayer player : bridge.server().getPlayerList().getPlayers()) {
+            if (player.connection.hasChannel(TabsProtocol.ServiceStatus.TYPE)) {
+                PacketDistributor.sendToPlayer(player, next);
+            }
+        }
+    }
+
+    /** Historique des sanctions d'un joueur, pour le sous-menu du staff (au lieu de l'ecrire dans le chat). */
+    private static final java.util.Map<java.util.UUID, Long> LAST_HISTORY = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static void onPlayerHistory(TabsProtocol.PlayerHistoryRequest payload, IPayloadContext context) {
+        Bridge bridge = Bridge.get();
+        if (bridge == null || bridge.repository() == null || !(context.player() instanceof ServerPlayer player)
+                || !com.arcadia.bridge.permission.Permissions.has(player, com.arcadia.bridge.permission.Permissions.HISTORY)) {
+            return;
+        }
+        // Pas plus d'une demande par demi-seconde : un client modifie ne peut pas faire tourner la base en boucle.
+        long now0 = System.currentTimeMillis();
+        Long previous = LAST_HISTORY.put(player.getUUID(), now0);
+        if (previous != null && now0 - previous < 500) {
+            return;
+        }
+        String name = payload.name();
+        bridge.resolvePlayer(name).thenCompose(ref -> ref == null
+                ? java.util.concurrent.CompletableFuture.completedFuture(new TabsProtocol.PlayerHistory(name, false, List.of()))
+                : bridge.repository().history(ref.uuid(), 20).thenCombine(bridge.notes() == null
+                        ? java.util.concurrent.CompletableFuture.completedFuture(List.<com.arcadia.bridge.moderation.StaffNotes.Note>of())
+                        : bridge.notes().list(ref.uuid(), 20), (list, notes) -> {
+                    long now = System.currentTimeMillis();
+                    List<TabsProtocol.HistoryEntry> entries = new java.util.ArrayList<>();
+                    list.forEach(s -> entries.add(new TabsProtocol.HistoryEntry(s.type().name(), s.reason() == null ? "" : s.reason(),
+                            s.actor() == null ? "" : s.actor(), s.createdAt(), s.expiresAt() == null ? 0 : s.expiresAt(), s.isInEffect(now))));
+                    // Les notes du staff se melent aux sanctions, par date.
+                    notes.forEach(n -> entries.add(new TabsProtocol.HistoryEntry("NOTE", n.text(), n.actor(), n.createdAt(), 0, false)));
+                    entries.sort((a, b) -> Long.compare(b.createdAt(), a.createdAt()));
+                    return new TabsProtocol.PlayerHistory(ref.name(), true, List.copyOf(entries.subList(0, Math.min(30, entries.size()))));
+                }))
+                .exceptionally(error -> new TabsProtocol.PlayerHistory(name, false, List.of()))
+                .thenAccept(result -> bridge.runOnMain(() -> PacketDistributor.sendToPlayer(player, result)));
+    }
+
     /** Le joueur change d'onglet d'ecriture : global ou serveur seul. */
     private static void onScope(TabsProtocol.Scope payload, IPayloadContext context) {
         Bridge bridge = Bridge.get();
@@ -298,6 +427,8 @@ public final class ChatTabs {
             bridge.channels().sendTeam(player, text);
         } else if (payload.channel().startsWith(TabsProtocol.CHANNEL_PREFIX)) {
             bridge.channels().sendChannel(player, ChatChannels.normalize(payload.channel()), text);
+        } else if (payload.channel().startsWith(DiscordRooms.PREFIX)) {
+            bridge.history().sendToDiscord(player, payload.channel(), text);
         }
     }
 
